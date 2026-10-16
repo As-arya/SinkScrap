@@ -1,0 +1,6 @@
+{
+  "name": "SinkScrapt.Runtime",
+  "rootNamespace": "SinkScrapt",
+  "references": ["Unity.Netcode.Runtime", "Unity.Collections", "Unity.InputSystem", "Unity.ugui", "Unity.TextMeshPro", "Unity.Services.Core", "Unity.Services.Authentication", "Unity.Services.Multiplayer", "Unity.Services.Vivox", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
+  "autoReferenced": true
+}

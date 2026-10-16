@@ -1,0 +1,21 @@
+# Sumber aset
+
+Model kapal, pulau, ruangan, pintu, karakter, monster, scrap, alat, dan puing dibuat dengan skrip Blender di proyek ini (`ArtSource/Blender/scripts`, hasil di `Assets/SinkScrapt/Resources/SinkScrapt/Models`). Ikon item di HUD dirender dari model yang sama (`ArtSource/Blender/scripts/icons.py` → `Resources/SinkScrapt/Icons`). Shader air (`Art/Water.shader`) dan filter retro (`Art/RetroPost.shader`) adalah kode proyek.
+
+**Tekstur:** seluruh tekstur permukaan (baja, karat, pelat lantai, kisi, cat dinding, kayu, seng gelombang, batu, beton, pasir, ubin, garis bahaya, lambung) disintesis saat runtime oleh `Surfaces.cs` dari noise ber-seed. Decal horor (darah, cap tangan, bekas seretan, goresan cakar, karat, noda lembap) dan tulisan di dinding dilukis dalam kode oleh `DecalArt` (`WorldDecor.cs`). Tidak ada berkas gambar pihak ketiga.
+
+**Audio rekaman (CC0):** sejak 2026-10-16 langkah kaki, laut, burung camar, angin, derit lambung kapal, pintu, tetesan air, dan suara monster memakai rekaman CC0 yang diolah oleh `ArtSource/Audio/build_audio.py` (berjalan di Python Blender) menjadi klip pendek `Assets/SinkScrapt/Resources/SinkScrapt/Audio/<Snd>_<n>.ogg`. Berkas unduhan aslinya tidak ikut disimpan di proyek; hanya hasil olahan. CC0 tidak mewajibkan atribusi, tetapi sumbernya dicatat di sini:
+
+| Sumber | Lisensi | Berkas yang dipakai |
+|---|---|---|
+| [BigSoundBank](https://bigsoundbank.com) (Joseph Sardin), unduhan OGG `https://bigsoundbank.com/UPLOAD/ogg/<id>.ogg` | CC0 1.0 | 0698 Sea Waves, 1514 Rowing Slowly (air beriak), 2573 Gulls on the Harbor, 2443 Masts Whistling #1, 1845 Walk on Pontoon, 1515 Steps on a Wooden Floor #1, 0514 Footsteps Shoe on Concrete, 3216 Footsteps on Gravels #4, 0690 Shoes in the Water, 0616 Creaking Metallic Door, 0303 Grinding Metal Gate #1, 0539 Creaking Barn Door, 1159 Door Squeaks and Rubs #1, 0306 Long Creaking Door, 3051 Squeaking Parquet #1, 2358 Metal Barrier Closure #1, 1703 Apartment Door Opening #2, 1704 Apartment Door Closing #1, 1774 Falling Sheet Steel Bar #4, 0235 Iron Bar Falls #2, 1384 Drops of Water #1, 1519 Splash Big #1, 1529 Splash Small #1, 0150 Water Bubbles, 2135 Cave #1, 1662 Howling of a Girl #1 (lapisan teriakan monster, diturunkan nadanya), 0596 Bones Cracking #1, 0261 Ocean Liner Horn #1 |
+| [Kenney – Impact Sounds](https://kenney.nl/assets/impact-sounds) (`kenney_impact-sounds.zip`, v1.0) | CC0 1.0 | footstep_concrete, impactPlate_light, impactMetal_light/medium/heavy, impactPlate_heavy, impactPunch_heavy/medium, impactSoft_heavy/medium, impactGeneric_light, impactWood_heavy (langkah besi dan kisi, benturan, pungut/jatuhkan) |
+| [OpenGameArt – 80 CC0 creature SFX](https://opengameart.org/content/80-cc0-creature-sfx) (rubberduck, `80-CC0-creature-SFX_0.zip`) | CC0 1.0 | scream_01/02, roar_01–03, monster_01/03/04/06, breath, snore, burble_01/02, weird_01–05 (teriakan, raungan, geraman, napas, dan suara bawah air monster) |
+
+**Audio sintetis:** bunyi UI, alarm, sirene, uap, percikan listrik, gemuruh, mesin, lonceng, dan cadangan untuk rekaman yang hilang tetap disintesis oleh `SoundBank` (osilator, noise, filter biquad, envelope) dan dicampur oleh `AudioDirector`.
+
+**Langit dan partikel:** `Resources/SinkScrapt/Sky.mat` memakai shader bawaan Unity `Skybox/Procedural`; `Particle.mat` memakai `Sprites/Default` dengan tekstur lingkaran lembut yang dibuat saat runtime (`Fx`). `Glass.mat` dan `Decal.mat` adalah URP Lit transparan untuk kaca jendela bulat dan decal. Semuanya dibuat oleh menu **SinkScrapt / Build Atmosphere**.
+
+**Font:** UI memakai Consolas dari Windows melalui `TMP_FontAsset.CreateFontAsset(familyName, style)` pada runtime, dengan Liberation Sans SDF (dari essential resources paket resmi Unity TextMeshPro/uGUI) sebagai cadangan. Pertahankan file lisensi yang ikut diimpor di `Assets/TextMesh Pro` ketika mendistribusikan font Liberation. Consolas tidak disertakan dalam build; font itu dibaca dari sistem pemain dan jatuh ke Liberation bila tidak ada.
+
+Paket Unity mengikuti lisensi masing-masing paket. Tidak ada pembelian aset atau asset pack berbayar dalam implementasi ini.

@@ -1,0 +1,1 @@
+{"name":"SinkScrapt.Tests","references":["SinkScrapt.Runtime"],"includePlatforms":["Editor"],"optionalUnityReferences":["TestAssemblies"]}

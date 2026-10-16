@@ -1,0 +1,79 @@
+# ---- Unity generated -----------------------------------------------------------------------------------------------------
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+crashlytics-build.properties
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# Builds and installers
+*.apk
+*.aab
+*.unitypackage
+*.app
+*.exe
+*_BurstDebugInformation_DoNotShip/
+
+# IDE / solution files (Unity regenerates them)
+.vs/
+.vscode/
+.idea/
+.gradle/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# ---- Project specific ----------------------------------------------------------------------------------------------------
+# QA runs, checkpoints and frame logs (campaign saves can contain profile ids).
+/Artifacts/
+# Blender autosave/backup copies; the .blend sources themselves are tracked.
+*.blend1
+*.blend2
+# Python caches from the Tools scripts.
+__pycache__/
+*.pyc
+# Local Claude/MCP wiring: contains machine-specific paths (user folder). Recreate it locally from CLAUDE.md.
+/.mcp.json
+/.claude/settings.local.json
+
+# ---- Secrets: never commit ----------------------------------------------------------------------------------------------
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+**/credentials*.json
+**/*secret*.json
+# Unity Services local auth caches
+/[Aa]ssets/[Ss]treamingAssets/UnityServicesProjectConfiguration.json
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini

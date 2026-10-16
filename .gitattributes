@@ -1,0 +1,23 @@
+# Text files: normalise line endings in the repository, keep them native in the working tree.
+* text=auto
+
+# Unity YAML assets: never auto-merge as plain text.
+*.unity    text merge=unityyamlmerge eol=lf
+*.prefab   text merge=unityyamlmerge eol=lf
+*.asset    text merge=unityyamlmerge eol=lf
+*.mat      text merge=unityyamlmerge eol=lf
+*.meta     text eol=lf
+*.cs       text diff=csharp
+*.shader   text
+*.md       text
+
+# Binary art (all well under GitHub's 100 MB limit, so no Git LFS is required).
+*.fbx   binary
+*.blend binary
+*.png   binary
+*.jpg   binary
+*.webp  binary
+*.wav   binary
+*.ogg   binary
+*.ttf   binary
+*.otf   binary
