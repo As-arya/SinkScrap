@@ -84,10 +84,11 @@ namespace SinkScrapt.Tests
         // 10 minutes: steady for 4, then six minutes of sinking. A longer configured duration stretches the same curve.
         [Test]public void TimelineHitsMilestonesAndNeverReverses()
         {
+            ShipProfile.Use(ShipKind.Cargo);
             float previous=-1;for(int i=0;i<=600;i++){float depth=ShipTimeline.Depth(i);Assert.That(depth,Is.GreaterThanOrEqualTo(previous));previous=depth;}
             Assert.That(ShipTimeline.Depth(ShipTimeline.SinkStart),Is.EqualTo(0).Within(.001));Assert.That(ShipTimeline.Depth(200),Is.EqualTo(0).Within(.001));
             Assert.That(ShipTimeline.Depth(ShipTimeline.WaterDeck2),Is.EqualTo(ShipTimeline.FloorHeight(1)).Within(.001));Assert.That(ShipTimeline.Depth(ShipTimeline.WaterDeck3),Is.EqualTo(ShipTimeline.FloorHeight(2)).Within(.001));
-            Assert.That(ShipTimeline.CargoDeck-ShipTimeline.Depth(ShipTimeline.DeckLevel),Is.EqualTo(ShipTimeline.BoatDeck).Within(.001));Assert.That(ShipTimeline.ShipTop-ShipTimeline.Depth(600),Is.LessThan(0));
+            Assert.That(ShipTimeline.ExteriorDeck-ShipTimeline.Depth(ShipTimeline.DeckLevel),Is.EqualTo(ShipTimeline.BoatDeck).Within(.001));Assert.That(ShipTimeline.CargoDeck,Is.EqualTo(ShipTimeline.ExteriorDeck));Assert.That(ShipTimeline.ShipTop-ShipTimeline.Depth(600),Is.LessThan(0));
             Assert.That(ShipTimeline.Depth(900,900),Is.EqualTo(ShipTimeline.Depth(600)).Within(.001));Assert.That(ShipTimeline.Depth(810,900),Is.EqualTo(ShipTimeline.Depth(540)).Within(.001));
             // The lowest deck starts waist-deep; the flood overtakes the bilge and then follows the sinking curve.
             Assert.That(ShipTimeline.InteriorWater(ShipTimeline.Depth(0)),Is.EqualTo(ShipTimeline.FloorHeight(0)+.9f).Within(.001));

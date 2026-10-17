@@ -20,7 +20,7 @@ namespace SinkScrapt
         public static void Interior(WorldZone zone,InteriorLayout layout)
         {
             var problem=layout?.Problem();
-            if(problem!=null)throw new InvalidOperationException("Blueprint interior tidak valid: "+problem+" (seed "+layout?.seed+", generator v"+InteriorLayout.GeneratorVersion+")");
+            if(problem!=null)throw new InvalidOperationException("Blueprint interior tidak valid: "+problem+" ("+layout?.Describe+")");
             zone.layout=layout;zone.hazards.Clear();
             var structure=new GameObject("Wreck structure").transform;structure.SetParent(zone.transform,false);
             var fixtures=new GameObject("Wreck fixtures").transform;fixtures.SetParent(zone.transform,false);
@@ -52,13 +52,17 @@ namespace SinkScrapt
         }
 
         // ---- Slabs ----------------------------------------------------------------------------------------------------------
+        // The cruise ship's passenger decks (all but the lowest) are carpeted and papered; its lowest deck is crew and machinery.
+        static bool Passenger(InteriorLayout layout,int f) => layout.ship==ShipKind.Cruise&&f>=1;
+        static readonly Color CorridorCarpet=new(.5f,.16f,.14f),CorridorPaper=new(.82f,.78f,.66f);
         static Surface FloorSurface(InteriorLayout layout,int f,int x,int z,out Color tint)
         {
             tint=Color.white;
             switch(layout.Kind(f,x,z,out int id)) {
-                case CellKind.Corridor: return Surface.Diamond;
+                case CellKind.Corridor: if(Passenger(layout,f)){tint=CorridorCarpet;return Surface.Carpet;}return Surface.Diamond;
                 case CellKind.Stair: return Surface.Grating;
                 case CellKind.Room:
+                    if(layout.rooms[id].type>=CruiseLayout.Lobby)return CruiseFloor(layout.rooms[id].type,out tint);
                     switch(layout.rooms[id].type) {
                         case 0: return Surface.RustPlate;
                         case 2: tint=new Color(.8f,.7f,.6f);return Surface.Planks;
@@ -104,9 +108,11 @@ namespace SinkScrapt
         {
             tint=Color.white;
             switch(layout.Kind(f,x,z,out int id)) {
-                case CellKind.Corridor: tint=new Color(.62f,.70f,.66f);return Surface.Bulkhead;
+                case CellKind.Corridor: if(Passenger(layout,f)){tint=CorridorPaper;return Surface.Wallpaper;}tint=new Color(.62f,.70f,.66f);return Surface.Bulkhead;
                 case CellKind.Stair: tint=new Color(.6f,.6f,.58f);return Surface.Plate;
+                case CellKind.Atrium: return CruiseWall(CruiseLayout.Lobby,out tint);
                 case CellKind.Room:
+                    if(layout.rooms[id].type>=CruiseLayout.Lobby)return CruiseWall(layout.rooms[id].type,out tint);
                     switch(layout.rooms[id].type) {
                         case 0: case 4: case 5: return Surface.RustPlate;
                         case 2: tint=CabinPaint;return Surface.Bulkhead;
@@ -126,11 +132,21 @@ namespace SinkScrapt
                 if(!ShipGrid.Inside(a.x,a.y)&&!ShipGrid.Inside(b.x,b.y))continue;
                 var ka=layout.Kind(f,a.x,a.y,out int ma);var kb=layout.Kind(f,b.x,b.y,out int mb);
                 if(ka==CellKind.Void&&kb==CellKind.Void)continue;
+                // The lobby atrium's open air: a balustrade toward the gallery corridor, plain walls toward anything else.
+                if(ka==CellKind.Atrium||kb==CellKind.Atrium) {
+                    if(ka==kb)continue;
+                    if(ka==CellKind.Corridor||kb==CellKind.Corridor) {Balustrade(p,ka==CellKind.Corridor?a:b,ka==CellKind.Corridor?dir:ShipGrid.Opposite(dir),f);continue;}
+                    if(ka!=CellKind.Void)WallSide(p,fixtures,layout,f,a,dir,0,0,false,true,kb!=CellKind.Void);
+                    if(kb!=CellKind.Void)WallSide(p,fixtures,layout,f,b,ShipGrid.Opposite(dir),0,0,false,ka==CellKind.Void,false);
+                    continue;
+                }
                 bool open=ShipGrid.Inside(a.x,a.y)?layout.Open(f,a.x,a.y,dir):layout.Open(f,b.x,b.y,ShipGrid.Opposite(dir));
                 if(open&&ka==kb&&ma==mb)continue;
                 float width=0,height=ShipGrid.DoorHeight;bool door=false;
                 if(open) {
                     door=ka!=CellKind.Stair&&kb!=CellKind.Stair&&ka!=CellKind.Void&&kb!=CellKind.Void;
+                    // The lobby's arches are wide openings without a leaf, framed like the stair and airlock openings.
+                    if(door) {int index=layout.DoorAt(f,a.x,a.y,dir);if(index>=0&&layout.doors[index].arch)door=false;}
                     width=door?ShipGrid.DoorWidth:3f;height=door?ShipGrid.DoorHeight:2.5f;
                 }
                 // An opening between two used cells gets one frame model, built from side a; against the hull, the used side builds it.
@@ -167,7 +183,7 @@ namespace SinkScrapt
             }
             var kind=layout.Kind(f,cell.x,cell.y,out _);
             // Ship framing: a rib at one end of every corridor wall and a porthole now and then on the outer hull.
-            if(kind==CellKind.Corridor) {
+            if(kind==CellKind.Corridor&&!Passenger(layout,f)) {
                 var ribAt=edge-n*.05f+along*(ShipGrid.Cell*.5f-.15f);
                 if(!Model("Kit/kit_frame_rib",p,ribAt,Quaternion.LookRotation(-n)))
                     Surfaces.Block("Frame rib",p,edge-n*.1f+along*(ShipGrid.Cell*.5f-.15f)+Vector3.up*(WallTop*.5f),Size(.22f,WallTop)+Abs(n)*.12f,Surface.Plate,DarkSteel,false);
@@ -188,6 +204,7 @@ namespace SinkScrapt
         // ---- Corridors ------------------------------------------------------------------------------------------------------
         static void CorridorCell(Transform p,Transform fixtures,InteriorLayout layout,int f,int x,int z)
         {
+            if(Passenger(layout,f)) {PassengerCorridor(p,fixtures,layout,f,x,z);return;}
             var c=ShipGrid.Center(f,x,z);float y=c.y;
             bool alongX=Corridor(layout,f,x-1,z)||Corridor(layout,f,x+1,z),alongZ=Corridor(layout,f,x,z-1)||Corridor(layout,f,x,z+1);
             if(!alongX&&!alongZ)alongZ=true;
@@ -210,7 +227,7 @@ namespace SinkScrapt
             // Wall fittings on closed sides: extinguishers, valve wheels, fuse boxes, vertical pipes. Thin and collider-free.
             // The kit models stand on the wall face (`face`) with their front toward the corridor.
             for(int dir=0;dir<4;dir++) {
-                if(layout.Open(f,x,z,dir))continue;var n=Dir3(dir);var along=new Vector3(-n.z,0,n.x);float roll=Hash01(x+f*13,z,dir+7);
+                if(layout.Open(f,x,z,dir)||layout.Balcony(f,x,z,dir))continue;var n=Dir3(dir);var along=new Vector3(-n.z,0,n.x);float roll=Hash01(x+f*13,z,dir+7);
                 var at=c+n*(ShipGrid.Cell*.5f-.12f)+along*((roll-.5f)*2.2f);var face=at+n*.02f;var facing=Quaternion.LookRotation(-n);
                 if(roll<.18f) {
                     if(!Model("Kit/kit_extinguisher",p,face+Vector3.up*.2f,facing)) {Shape("Extinguisher",PrimitiveType.Capsule,p,at+Vector3.up*.55f,new Vector3(.18f,.3f,.18f),RedPaint,false);Surfaces.Block("Bracket",p,at+n*.06f+Vector3.up*.55f,new Vector3(.22f,.08f,.22f),Surface.Plate,DarkSteel,false);}
@@ -227,7 +244,7 @@ namespace SinkScrapt
                 else if(roll<.6f)Pipe(p,at+Vector3.up*1.5f,Vector3.up,3,.14f,(x+z)%2==0?Rust:Steel);
             }
             // Only a few corridor cells have a lamp at all, and many of those are dead: without a torch the wreck is near black.
-            if(Hash01(x,z,f+31)<.12f)CeilingLamp(fixtures,c+Vector3.up*2.48f,LampCold,f*100+x*11+z,1f,5.5f);
+            if(Hash01(x,z,f+31)<ShipProfile.Current.corridorLamps)CeilingLamp(fixtures,c+Vector3.up*2.48f,LampCold,f*100+x*11+z,1f,5.5f);
         }
         static Vector3 Abs(Vector3 v) => new(Mathf.Abs(v.x),Mathf.Abs(v.y),Mathf.Abs(v.z));
         static bool Corridor(InteriorLayout layout,int f,int x,int z) => layout.Kind(f,x,z,out _)==CellKind.Corridor;
@@ -268,7 +285,11 @@ namespace SinkScrapt
         }
 
         // ---- Rooms ----------------------------------------------------------------------------------------------------------
-        public static readonly string[] RoomTitles={"PALKA","GUDANG","KABIN KRU","DAPUR","RUANG MESIN","POMPA","LISTRIK"};
+        // Room titles by type: 0-6 cargo ship (types 1-4 and 6 also on the cruise ship's crew deck), 7-16 cruise ship.
+        public static readonly string[] RoomTitles={"PALKA","GUDANG","KABIN KRU","DAPUR","RUANG MESIN","POMPA","LISTRIK",
+            "LOBI","KABIN","SUITE","RESTORAN","TEATER","BAR","KASINO","BUTIK","KLINIK","BINATU"};
+        // The sign over a room's door: passenger cabins and suites carry a cabin number (deck digit first).
+        static string RoomSign(RoomData room) => room.type==CruiseLayout.Cabin||room.type==CruiseLayout.Suite?RoomTitles[room.type]+" "+(room.floor+1)+(room.id%100).ToString("00"):RoomTitles[room.type];
         static void Room(WorldZone zone,Transform p,Transform fixtures,InteriorLayout layout,RoomData room)
         {
             int seed=layout.seed^(room.id*7919);var random=new System.Random(seed);
@@ -279,20 +300,25 @@ namespace SinkScrapt
                     bool open=layout.Open(room.floor,x,z,dir);
                     if(!open) Furnish(p,fixtures,room.type,c,n,along,random,3.6f,0);
                     else if(!room.Contains(nb.x,nb.y)) {
-                        // A doorway: keep the corners beside it for small things only, and sign the corridor side.
-                        if(random.Next(2)==0)Furnish(p,fixtures,room.type,c,n,along,random,.9f,random.Next(2)==0?-1.4f:1.4f);
                         var outsideKind=layout.Kind(room.floor,nb.x,nb.y,out _);
+                        // The lobby's 3 m openings (arches, grand stairs, main entry) keep their sides clear.
+                        int index=layout.DoorAt(room.floor,x,z,dir);
+                        bool wide=outsideKind==CellKind.Stair||outsideKind==CellKind.Void||(index>=0&&layout.doors[index].arch);
+                        // A doorway: keep the corners beside it for small things only, and sign the corridor side.
+                        if(!wide&&random.Next(2)==0)Furnish(p,fixtures,room.type,c,n,along,random,.9f,random.Next(2)==0?-1.4f:1.4f);
                         // TextMeshPro reads from its local -Z side, so the sign looks away from the corridor reader.
-                        if(outsideKind==CellKind.Corridor)Text(RoomTitles[room.type],fixtures,c+n*(ShipGrid.Cell*.5f+.13f)+Vector3.up*2.58f,.045f,Cream,Quaternion.LookRotation(-n));
+                        if(outsideKind==CellKind.Corridor)Text(RoomSign(room),fixtures,c+n*(ShipGrid.Cell*.5f+.13f)+Vector3.up*(wide?2.75f:2.58f),.045f,Cream,Quaternion.LookRotation(-n));
                     }
                 }
             }
             var first=ShipGrid.Center(room.floor,room.x,room.z);var centre=layout.Position(room);
-            // About one room in four still has power; the rest are dark (a hanging dead lamp at most).
-            if(Hash01(seed,11,room.floor)<.27f)CeilingLamp(fixtures,centre+Vector3.up*2.5f,room.type==6||room.type==4?LampCold:LampWarm,seed,1.1f,6+Mathf.Max(room.w,room.d));
+            if(room.type>=CruiseLayout.Lobby)CruiseRoom(zone,p,fixtures,layout,room,random,seed);
+            // About one room in four still has power; the rest are dark (a hanging dead lamp at most). The lobby has its chandeliers.
+            else if(Hash01(seed,11,room.floor)<.27f)CeilingLamp(fixtures,centre+Vector3.up*2.5f,room.type==6||room.type==4?LampCold:LampWarm,seed,1.1f,6+Mathf.Max(room.w,room.d));
             else Model("Kit/kit_ceiling_lamp_broken",fixtures,centre+Vector3.up*2.67f,Quaternion.identity);
             // Seeded hazard against a closed wall of the room's first cell.
-            if((room.id+Math.Abs((NetSession.Instance?.Seed??layout.seed)%7))%7==0) {
+            int every=layout.Profile.hazardEvery;
+            if(!layout.IsLobby(room)&&(room.id+Math.Abs((NetSession.Instance?.Seed??layout.seed)%every))%every==0) {
                 int side=0;for(int dir=0;dir<4;dir++)if(!layout.Open(room.floor,room.x,room.z,dir)) {side=dir;break;}
                 var hazardGo=new GameObject(room.type==6?"Live electricity":"Steam leak");hazardGo.transform.SetParent(zone.transform,false);hazardGo.transform.localPosition=first+Dir3(side)*1.2f+Vector3.up*.1f;
                 var hazard=hazardGo.AddComponent<WorldHazard>();hazard.electric=(room.id%2)==0;hazard.index=zone.hazards.Count;hazard.label=RoomTitles[room.type];hazard.deck=room.floor;zone.hazards.Add(hazard);
@@ -302,6 +328,7 @@ namespace SinkScrapt
         // (3.6 for a closed wall, 0.9 for a corner beside a door); `offset` shifts it along the wall. Depth never exceeds 1 m.
         static void Furnish(Transform p,Transform fixtures,int type,Vector3 c,Vector3 n,Vector3 along,System.Random random,float length,float offset)
         {
+            if(type>=CruiseLayout.Lobby) {FurnishCruise(p,fixtures,type,c,n,along,random,length,offset);return;}
             var rot=Quaternion.LookRotation(-n);var wall=c+n*1.9f+along*offset;int pick=random.Next(4);
             Vector3 At(float depth,float height,float shift=0) => wall-n*depth*.5f+along*shift+Vector3.up*height;
             bool corner=length<1.5f;
@@ -444,8 +471,9 @@ namespace SinkScrapt
         {
             var origin=layout.EntryOrigin(index,out var fwd);var right=new Vector3(fwd.z,0,-fwd.x);var rot=Quaternion.LookRotation(fwd);
             string name=InteriorLayout.EntryNames[index];
+            if(layout.ship==ShipKind.Cruise) {CruiseVestibule(p,fixtures,origin,fwd,right,rot,ShipTimeline.FloorHeight(layout.entries[index].floor),index,name);return;}
             if(!layout.entries[index].Flight) {Hatch(p,fixtures,origin,fwd,right,rot,ShipTimeline.FloorHeight(layout.entries[index].floor),index,name);return;}
-            const float y0=8,top=ShipTimeline.CargoDeck;float length=ShipGrid.AirlockLength,climb=ShipGrid.AirlockRun;
+            const float y0=8;float top=ShipTimeline.CargoDeck,length=ShipGrid.AirlockLength,climb=ShipGrid.AirlockRun;
             Vector3 At(float s,float h) => origin+fwd*s+Vector3.up*h;
             Surfaces.Block("Airlock floor",p,At(climb*.5f,y0-.1f),new Vector3(4,.2f,climb),Surface.Plate,DarkSteel,true,rot);
             const int steps=11;float run=climb/steps,rise=(top-y0)/steps;
@@ -486,7 +514,7 @@ namespace SinkScrapt
         static void BuildNavigation(WorldZone zone,InteriorLayout layout)
         {
             zone.ClearNavigation();
-            const int cells=ShipGrid.Columns*ShipGrid.Rows;
+            int cells=ShipGrid.Columns*ShipGrid.Rows;
             for(int f=0;f<ShipGrid.Decks;f++)for(int z=0;z<ShipGrid.Rows;z++)for(int x=0;x<ShipGrid.Columns;x++) {
                 var kind=layout.Kind(f,x,z,out _);
                 if(kind==CellKind.Corridor||kind==CellKind.Room)zone.cellNodes[f*cells+x+z*ShipGrid.Columns]=zone.AddNode(ShipGrid.Center(f,x,z),kind==CellKind.Corridor?NavKind.Corridor:NavKind.Room);

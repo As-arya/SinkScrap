@@ -50,7 +50,15 @@ namespace SinkScrapt
             new(17,"Kunci",ItemKind.Key,0,.2f,false,new Color(.78f,.62f,.30f)),
             // A parachute supply drop ordered on the boat computer. It lands on the small boat's deck; opening it (E) lays its
             // contents out on the deck. It is never sold and is not bought directly.
-            new(18,"Paket pasokan",ItemKind.Package,0,8,true,new Color(.55f,.42f,.27f))
+            new(18,"Paket pasokan",ItemKind.Package,0,8,true,new Color(.55f,.42f,.27f)),
+            // Cruise-ship scrap (product owner, 2026-10-16): found in the passenger rooms of the cruise wreck only
+            // (ShipProfile.Cruise loot tables). Appended after the existing ids, so older saves load unchanged.
+            new(19,"Botol sampanye",ItemKind.Scrap,25,1.5f,false,new Color(.14f,.30f,.18f)),
+            new(20,"Nampan perak",ItemKind.Scrap,35,2,false,new Color(.74f,.75f,.76f)),
+            new(21,"Keping kasino",ItemKind.Scrap,45,1,false,new Color(.62f,.12f,.12f)),
+            new(22,"Lonceng kapal",ItemKind.Scrap,65,4,false,new Color(.70f,.52f,.22f)),
+            new(23,"Kotak perhiasan",ItemKind.Scrap,95,1,false,new Color(.46f,.10f,.14f)),
+            new(24,"Gramofon",ItemKind.Scrap,125,10,true,new Color(.40f,.24f,.14f))
         };
         public const int Flashlight=12,Radio=13,Battery=16,Key=17,Package=18;
         // Tools sold through the boat computer, in shop order.
@@ -288,33 +296,41 @@ namespace SinkScrapt
         }
     }
 
+    // The shared sinking clock on the active wreck's timeline (ShipProfile.Current). Milestones are seconds on its nominal clock
+    // (600 s cargo ship: steady for 4 minutes, sinking for 6; 720 s cruise ship: steady for 5, sinking for 7); the configured
+    // duration stretches them in proportion.
     public static class ShipTimeline
     {
         public const float BoatDeck=1;
-        public const float CargoDeck=10;
-        public const float ShipTop=14;
-        // Milestones on a nominal 600 s (10 min) expedition; a different BalanceConfig.duration stretches them in proportion.
-        // The wreck holds steady for the first four minutes (only the waist-deep bilge on deck 1), then sinks over the last six.
-        public const float Nominal=600;
-        public const float SinkStart=240, WaterDeck2=420, WaterDeck3=500, DeckLevel=540;
-        static readonly float[] Times={0,SinkStart,330,WaterDeck2,WaterDeck3,DeckLevel,Nominal};
-        static readonly float[] Depths={0,0,2,5,8,9,14.5f};
+        static ShipProfile P => ShipProfile.Current;
+        // Top of the airlock flights (cargo deck), the open deck that is level with the small-boat deck at DeckLevel, and the
+        // ship's highest point (under water at the end).
+        public static float CargoDeck => P.flightTop;
+        public static float ExteriorDeck => P.exteriorDeck;
+        public static float ShipTop => P.shipTop;
+        public static float Nominal => P.nominal;
+        public static float SinkStart => P.sinkStart;
+        public static float WaterDeck2 => P.waterDeck2;
+        public static float WaterDeck3 => P.waterDeck3;
+        public static float DeckLevel => P.deckLevel;
         // Seconds into an expedition of `duration` at which nominal milestone `nominal` happens.
         public static float At(float nominal,float duration) => nominal/Nominal*duration;
+        public static float Depth(float elapsed) => Depth(elapsed,Nominal);
         // Smooth Hermite tangents keep motion continuous while passing every flood milestone.
-        public static float Depth(float elapsed,float duration=Nominal)
+        public static float Depth(float elapsed,float duration)
         {
+            var times=P.times;var depths=P.depths;
             var t=Mathf.Clamp(elapsed/duration*Nominal,0,Nominal);
-            for(int i=0;i<Times.Length-1;i++)
+            for(int i=0;i<times.Length-1;i++)
             {
-                if(t>Times[i+1]) continue;
-                var h=Times[i+1]-Times[i]; var u=(t-Times[i])/h;
-                var secant=(Depths[i+1]-Depths[i])/h;
-                var left=i==0?secant:Mathf.Min(secant,(Depths[i]-Depths[i-1])/(Times[i]-Times[i-1]));
-                var right=i==Times.Length-2?secant:Mathf.Min(secant,(Depths[i+2]-Depths[i+1])/(Times[i+2]-Times[i+1]));
-                return (2*u*u*u-3*u*u+1)*Depths[i]+(u*u*u-2*u*u+u)*h*left+(-2*u*u*u+3*u*u)*Depths[i+1]+(u*u*u-u*u)*h*right;
+                if(t>times[i+1]) continue;
+                var h=times[i+1]-times[i]; var u=(t-times[i])/h;
+                var secant=(depths[i+1]-depths[i])/h;
+                var left=i==0?secant:Mathf.Min(secant,(depths[i]-depths[i-1])/(times[i]-times[i-1]));
+                var right=i==times.Length-2?secant:Mathf.Min(secant,(depths[i+2]-depths[i+1])/(times[i+2]-times[i+1]));
+                return (2*u*u*u-3*u*u+1)*depths[i]+(u*u*u-2*u*u+u)*h*left+(-2*u*u*u+3*u*u)*depths[i+1]+(u*u*u-u*u)*h*right;
             }
-            return Depths[^1];
+            return depths[^1];
         }
         public static float FloorHeight(int floor) => 2+3*floor;
         // The lowest deck already stands in waist-deep bilge water when the crew arrives. The rising flood takes over once it is

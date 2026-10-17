@@ -50,14 +50,25 @@ namespace SinkScrapt
             switch(kind) {
                 case WorldZoneKind.SmallBoat: Boat=this; WorldFactory.SmallBoat(this); break;
                 case WorldZoneKind.Island: Island=this; WorldFactory.Island(this); break;
-                case WorldZoneKind.Exterior: Exterior=this; WorldFactory.Exterior(this); break;
+                case WorldZoneKind.Exterior: Exterior=this; BuildExterior(); break;
                 case WorldZoneKind.Interior: Interior=this; transform.position=InteriorOffset; break;
             }
+        }
+        // The wreck exterior for the ship the host picked (NetSession.Ship). A client whose scene loaded before that value arrived
+        // (or a late joiner) rebuilds it once the value is known.
+        ShipKind? builtShip;
+        void BuildExterior()
+        {
+            var ship=NetSession.Instance!=null?NetSession.Instance.Ship.Value:ShipProfile.Current.kind;ShipProfile.Use(ship);
+            if(this.ship!=null) {Destroy(this.ship.gameObject);this.ship=null;}
+            builtShip=ship;
+            if(ship==ShipKind.Cruise)WorldFactory.CruiseExterior(this);else WorldFactory.Exterior(this);
         }
         void Update()
         {
             var session=NetSession.Instance;
             if(session==null) return;
+            if(kind==WorldZoneKind.Exterior && builtShip!=session.Ship.Value) BuildExterior();
             if(kind==WorldZoneKind.Interior && !string.IsNullOrEmpty(session.BlueprintCode) && session.BlueprintCode!=builtLayout) {
                 builtLayout=session.BlueprintCode; WorldFactory.Interior(this,InteriorLayout.Unpack(builtLayout));session.NotifyLayoutBuilt();
             }
@@ -74,14 +85,18 @@ namespace SinkScrapt
             }
         }
         public static Vector3 BoatSpawn => new(24,1.05f,-5);
+        static bool Cruise => ShipProfile.Current.kind==ShipKind.Cruise;
         // The boarding rope runs from the port rail (x 20) to the wreck; the rescue ladder hangs off the starboard hull (x 30).
+        // On the cargo ship the rope is made fast on the main deck's rail; on the cruise ship on the gangway platform outside
+        // the lobby's main door (A), 4 m above the sea, so it goes under well before the ship's upper decks do.
         public static Vector3 RopeBottom => new(19.9f,1.1f,0);
-        public static Vector3 RopeTop => new(15.5f,10.2f-(NetSession.Instance?.Depth??0),0);
+        static Vector3 RopeAnchor => Cruise?new Vector3(16.3f,5.3f,0):new Vector3(15.5f,10.2f,0);
+        public static Vector3 RopeTop => RopeAnchor+Vector3.down*(NetSession.Instance?.Depth??0);
         // The rope has a fixed length (a little slack at the start). As the wreck sinks toward the boat its ends close in and
         // the slack hangs as a belly below the chord, on the downhill side. Everything derives from the shared depth, so every
         // peer draws (and climbs) the same curve.
         public const int RopeSegments=18;
-        static readonly float RopeLength=Vector3.Distance(new Vector3(19.9f,1.1f,0),new Vector3(15.5f,10.2f,0))*1.035f;
+        static float RopeLength => Vector3.Distance(RopeBottom,RopeAnchor)*1.035f;
         public static Vector3 RopePoint(float t)
         {
             var a=RopeBottom;var b=RopeTop;var chord=b-a;float span=chord.magnitude;var axis=chord/Mathf.Max(span,.01f);
@@ -92,14 +107,19 @@ namespace SinkScrapt
         }
         public static Vector3 RescueBottom => new(31,-1.5f,1);
         public static Vector3 RescueTop => new(29.4f,1.1f,1);
-        // Deck doors on the wreck: A in the bridge house (stern), B in the forecastle cabin (bow), C a deck hatch amidships.
+        // Deck doors on the cargo wreck: A in the bridge house (stern), B in the forecastle cabin (bow), C a deck hatch amidships.
         static readonly Vector3[] ExteriorDoors={new(0,10.05f,-31),new(0,10.05f,31),new(0,10.05f,-1.1f)};
         // Where a diver coming back out of entry `index` stands, beside its door, and which way they face.
         static readonly Vector3[] ExteriorExits={new(0,0,3),new(0,0,-3),new(0,0,2.4f)};
         static readonly float[] ExteriorFacing={0,180,0};
-        public static Vector3 ExteriorEntry(int index) => ExteriorDoors[Mathf.Clamp(index,0,2)]+Vector3.down*(NetSession.Instance?.Depth??0);
-        public static Vector3 ExteriorExit(int index) => ExteriorEntry(index)+ExteriorExits[Mathf.Clamp(index,0,2)];
-        public static float ExteriorExitFacing(int index) => ExteriorFacing[Mathf.Clamp(index,0,2)];
+        // Cruise ship: A the main shell door in the starboard hull, on the gangway platform (y 5); B and C the emergency exits in
+        // the superstructure's starboard wall on the promenade deck (y 11), aft and forward (WorldFactory.CruiseExterior).
+        public static readonly Vector3[] CruiseDoors={new(14.3f,5.05f,0),new(10.5f,11.05f,-30),new(10.5f,11.05f,30)};
+        static readonly Vector3[] CruiseExits={new(.9f,0,-1.3f),new(1.4f,0,0),new(1.4f,0,0)};
+        static readonly float[] CruiseFacing={90,90,90};
+        public static Vector3 ExteriorEntry(int index) => (Cruise?CruiseDoors:ExteriorDoors)[Mathf.Clamp(index,0,2)]+Vector3.down*(NetSession.Instance?.Depth??0);
+        public static Vector3 ExteriorExit(int index) => ExteriorEntry(index)+(Cruise?CruiseExits:ExteriorExits)[Mathf.Clamp(index,0,2)];
+        public static float ExteriorExitFacing(int index) => (Cruise?CruiseFacing:ExteriorFacing)[Mathf.Clamp(index,0,2)];
         // Inside entry `index` (airlock flight or hatch vestibule); where it is comes from the current blueprint.
         public static Vector3 InteriorEntry(int index)
         {
@@ -230,7 +250,7 @@ namespace SinkScrapt
         public static GameObject ItemVisual(Transform parent,int definitionId)
         {
             var def=ItemCatalog.Get(definitionId);var root=new GameObject(def.title);root.transform.SetParent(parent,false);
-            if(definitionId>=0&&definitionId<ModelLibrary.ItemModels.Length&&ModelLibrary.Spawn("Items/"+ModelLibrary.ItemModels[definitionId],root.transform,Vector3.zero)!=null)return root;
+            if(definitionId>=0&&definitionId<ModelLibrary.ItemModels.Length&&ModelLibrary.ItemModels[definitionId]!=null&&ModelLibrary.Spawn("Items/"+ModelLibrary.ItemModels[definitionId],root.transform,Vector3.zero)!=null)return root;
             if(def.kind==ItemKind.Package) {
                 // Crate (bottom-centre pivot) centred on the item, plus its canopy; NetItem folds the "Parachute" child away on landing.
                 if(ModelLibrary.Spawn("Props/prop_supply_crate",root.transform,new Vector3(0,-.3f,0))==null)Box("Crate",root.transform,Vector3.zero,new Vector3(.75f,.6f,.75f),def.color,false);

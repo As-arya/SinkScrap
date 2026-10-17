@@ -22,7 +22,7 @@ namespace SinkScrapt
         {
             var session=NetSession.Instance;if(text==null||Time.unscaledTime<next)return;next=Time.unscaledTime+.5f;
             if(session==null||!session.InExpedition) {var orders=session?.Campaign.orders;text.text="S-04 SIAGA\n\nTOKO SIAP\n"+(orders!=null&&orders.Count>0?"PAKET "+Mathf.CeilToInt(orders.Min(o=>o.remaining))+" DTK":"PESAN ALAT");return;}
-            float depth=session.Depth,flood=session.FloodLevel;int deck=flood>=ShipTimeline.FloorHeight(2)?3:flood>=ShipTimeline.FloorHeight(1)?2:1;
+            float depth=session.Depth,flood=session.FloodLevel;int deck=1;for(int d=1;d<ShipGrid.Decks;d++)if(flood>=ShipTimeline.FloorHeight(d))deck=d+1;
             text.text="S-04  TENGGELAM\n"+depth.ToString("0.0")+" m\nSISA "+TimeSpan.FromSeconds(session.Remaining).ToString(@"mm\:ss")+"\nAIR DEK "+deck;
         }
     }

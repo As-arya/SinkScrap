@@ -60,6 +60,12 @@ One-handed items must fit a **0.4 m cube** (their pickup box); two-handed items 
 | 13 | tool_radio | Radio | handheld radio with antenna |
 | 14 | tool_oxygen_tank | Tabung oksigen | blue tank with valve |
 | 15 | tool_flare | Flare | red flare stick |
+| 19 | scrap_champagne | Botol sampanye | cruise only: green bottle, gold foil, 25 cr |
+| 20 | scrap_silver_tray | Nampan perak | cruise only: oval tray with a cloche, 35 cr |
+| 21 | scrap_casino_chips | Keping kasino | cruise only: chip carrier with five stacks, 45 cr |
+| 22 | scrap_ship_bell | Lonceng kapal | cruise only: brass bell on a wall bracket, 65 cr |
+| 23 | scrap_jewellery_box | Kotak perhiasan | cruise only: open box, pearls, glowing gem, 95 cr (valuable) |
+| 24 | scrap_gramophone | Gramofon | cruise only, **two-handed**: cabinet, turntable, brass horn, 125 cr |
 
 **Status (2026-10-15):** all 16 modelled in Blender 5.2.2 (`ArtSource/Blender/items.blend`, collection `Items`) and exported to `Assets/SinkScrapt/Resources/SinkScrapt/Models/Items/<asset-id>.fbx`. `WorldFactory.ItemVisual` now loads them through `ModelLibrary` and falls back to the old primitives when a model is missing. Not yet checked in a running game, so the orientation and export settings are still unconfirmed in Unity.
 - Each item is one mesh with its origin at its bounding-box centre; 124–512 triangles; every one fits its pickup box (one-handed ≤ 0.4 m, two-handed ≤ 0.8 x 0.6 x 0.6 m).
@@ -196,6 +202,37 @@ Built in Blender 5.2.2 with two new toolkits: `scripts/kitlib.py` (static pieces
 - **Items (`scripts/items_extra.py`, `items.blend`).** `tool_battery` (id 16, a chunky 6 V lantern battery, 196 tris) and `item_key` (id 17, a brass key on a red tag, 172) replace the last code primitives; `ModelLibrary.ItemModels` now covers ids 0–17. `items.blend`'s palette images were re-pointed to `Resources/SinkScrapt/Models/Items`.
 - **Debris (`scripts/props_horror.py`, `Models/Props/prop_debris_*`).** A tipped chair, a bucket, a pair of abandoned sea boots, loose papers, broken planks and a life jacket (48–212 tris). Bottom-centre pivot, no colliders. `WorldFactory.Dress` scatters them in room corners and against corridor walls, outside the 1.4 m navigation band.
 - **Item icons (`scripts/icons.py`).** Every item (ids 0–18; 18 is the supply crate) is rendered with EEVEE from its game model (orthographic three-quarter view, key/fill/rim suns, transparent film), outlined, given a soft drop shadow and box-filtered from 256 to 128 px into `Resources/SinkScrapt/Icons/item_<id>.png`. `Editor/MediaImportRules.cs` imports them as sprites. Re-run the script after changing an item model.
+
+### 7. Cruise ship: scrap and furniture (2026-10-16)
+
+Built in Blender 5.2.2 through the MCP server, by script, for the abandoned cruise ship (PRD 6.8). Scrap and loot tables: PRD 6.8 and `ShipProfile`.
+
+- **Cruise scrap (`scripts/cruise_items.py`, `items.blend` collection `Items`, `Models/Items`).** Ids 19–24 in the table above. One mesh each, built with `charlib.Builder` and flat `Col__` colours like `items_extra.py`. The jewellery box's gem is `Glow__`. The origin is at the bounding-box centre.
+  - Sizes (Blender x, y, z): champagne 0.09 x 0.09 x 0.36; tray 0.40 x 0.27 x 0.16; chips 0.32 x 0.15 x 0.15; bell 0.25 x 0.25 x 0.39; jewellery box 0.27 x 0.22 x 0.28; gramophone (two-handed) 0.48 x 0.47 x 0.57.
+  - Triangle counts: 300, 424, 304, 372, 432 and 424. The tray and the jewellery box are slightly over the 400 small-item budget.
+  - `ModelLibrary.ItemModels` now runs to id 24. Id 18 (the supply crate) is `null` there, because `ItemVisual` builds it.
+  - Icons: `icons.py` lists the six new ids. Set `ONLY = [19, 20, 21, 22, 23, 24]` before `exec` to render just those.
+- **Cruise furniture (`scripts/cruise_furniture.py`, new `ArtSource/Blender/cruise.blend` collection `Cruise`, `Models/Furniture/cruise_*`).** Built with `kitlib.Kit` (metre UVs, kit slot convention). Pivot at bottom centre, front toward −Y, back on +Y.
+  - New fixed tints in `ModelLibrary.Tints`: `DarkWood`, `Mahogany`, `Linen`, `Gold`, `PianoBlack`, `Porcelain`, `MarbleWhite`, `Crystal` (used as `Glow__Crystal`) and `DeadCrystal`.
+  - A bare `Carpet` slot takes the caller's fabric colour (blankets, upholstery). A bare `Plate` slot takes the slot machine's cabinet colour.
+
+| asset-id | Tris | Size (m) | Replaces in `WorldCruise.cs` |
+|---|---:|---|---|
+| cruise_bed | 144 | 2.08 x 1.0 x 1.25 | `Bed` (cabin and suite berth); headboard on Blender +X (Unity −X, the code's `-along` end) |
+| cruise_bed_king | 156 | 2.26 x 2.25 x 1.5 | the suite's king bed (`Centrepiece`); headboard on +Y |
+| cruise_sofa | 236 | 2.8 x 0.85 x 0.95 | `Sofa`; the code stretches X to the length (2.4–3.2) and uses it for the lobby sofas (1.9 x 0.75) |
+| cruise_armchair | 188 | 0.87 x 0.85 x 0.95 | `Armchair` (`Sofa` with length 0.85) |
+| cruise_dining_table | 412 | ⌀1.38 x 0.86 | `DiningTable` (pedestal, linen cloth, three place settings); the seeded candle stays a primitive |
+| cruise_chair | 108 | 0.46 x 0.5 x 0.96 | `Chair` (dining and card tables, upright or toppled) |
+| cruise_piano | 536 | 1.46 x 2.1 x 1.78 | the lobby's grand piano; keyboard on −Y, so the code turns it 180° (the code's keys face −Z) |
+| cruise_chandelier | 1,384 | ⌀2.44 x 2.55 | the hanging lobby chandelier: pivot at the ring centre, chain to +1.6 m; the light stays in code |
+| cruise_chandelier_fallen | 1,608 | 2.45 x 2.34 x 1.0 | the crashed chandelier (dark prisms, snapped chain) |
+| cruise_pillar | 268 | 0.86 x 0.86 x 5.78 | lobby pillars; the code scales Z to the lobby's floor-to-ceiling height |
+| cruise_slot_machine | 440 | 0.85 x 0.7 x 2.08 | `SlotMachine`; lever on Blender −X (Unity +X); the code's lit, blinking reel screen sits in the bezel's window |
+
+  - The two chandeliers are over the furniture budget. There is one of each per cruise wreck.
+  - **Wiring:** `WorldFactory.Swap` builds the primitives first, which keeps their colliders and the seeded random draws, then hides their renderers when the model loads. The chair is an exception: `Chair` has no collider and no random draw, so it returns early once its model loads.
+  - Import confirmed in Unity 6000.6.5f1 (bounds read from the imported prefabs): bed headboard on −X, piano keys on +Z, slot lever on +X, chair back on −Z.
 
 ## Wiring (2026-10-15)
 

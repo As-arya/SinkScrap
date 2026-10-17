@@ -12,6 +12,8 @@ namespace SinkScrapt
     {
         public int expectedPlayers=1;
         public int iterations=10;
+        // Which wreck the expeditions go to (--qa-ship cruise, or Tools/StartQaCruise.cs).
+        public ShipKind ship=ShipKind.Cargo;
         public bool done,passed;
         public string failure="";
         public readonly List<string> checks=new();
@@ -204,7 +206,7 @@ namespace SinkScrapt
                 var side=tip-doorCentre;side-=n*Vector3.Dot(side,n);side.y=0;
                 return layout.Kind(d.floor,c.x,c.y,out _)==CellKind.Room&&Mathf.Abs(Vector3.Dot(tip-doorCentre,n))<1.15f&&side.magnitude>.5f;});
             Check(leaf.IsOpen&&leaf.Opening>=1&&leaf.blocks.All(b=>b.enabled)&&intoRoom,"The door leaf ("+leaf.style+") swings open into the room, beside the doorway");
-            int plain=Enumerable.Range(0,layout.doors.Count).First(i=>!layout.doors[i].locked);
+            int plain=Enumerable.Range(0,layout.doors.Count).First(i=>!layout.doors[i].locked&&!layout.doors[i].arch);
             var pn=new Vector3(ShipGrid.Dirs[layout.doors[plain].dir].x,0,ShipGrid.Dirs[layout.doors[plain].dir].y);
             yield return MoveTo(player,WorldZone.InteriorOffset+layout.DoorCenter(plain)-pn*1.2f+Vector3.up*.05f,PlayerZone.Interior);
             yield return Act(player,ActionKind.Door,plain);bool opened=session.DoorOpen(plain);
@@ -359,7 +361,10 @@ namespace SinkScrapt
         {
             var app=SinkApp.Instance;var balance=app.balance;var offset=WorldZone.InteriorOffset;string at=iteration>0?" "+iteration:"";
             var stalker=NetEnemy.All.FirstOrDefault(e=>!e.waterEnemy);
-            Check(stalker!=null,"Hull stalker spawns with the expedition"+at);
+            int stalkers=NetEnemy.All.Count(e=>!e.waterEnemy);
+            Check(stalker!=null&&stalkers==Mathf.Min(2,session.Profile.stalkers+(session.Campaign.cycle>=4?1:0)),stalkers+" hull stalker(s) spawn with the "+session.Ship.Value+" expedition"+at);
+            // The scripted checks follow one stalker; any other one is switched off so it cannot join in.
+            foreach(var other in NetEnemy.All.Where(e=>!e.waterEnemy&&e!=stalker))other.enabled=false;
             // The scripted strike checks need the plain strike; the grab gets its own check below.
             NetEnemy.GrabChanceOverride=0;
             Check(NetEnemy.All.Count(e=>e.waterEnemy)==0,"Drowned hunter stays away until the water reaches deck 2"+at);
@@ -430,7 +435,7 @@ namespace SinkScrapt
             yield return NoClipping(stalker,player,layout,iteration);
             // The hunter appears when the water reaches deck 2 and attacks a swimmer in the flooded deck.
             stalker.enabled=false;
-            session.Started.Value=app.TimeNow-ShipTimeline.At(ShipTimeline.WaterDeck2+15,balance.duration);
+            session.Started.Value=app.TimeNow-ShipTimeline.At(ShipTimeline.WaterDeck2+15,session.Duration);
             yield return Wait(()=>NetEnemy.All.Any(e=>e.waterEnemy),6,"Drowned hunter surfaces");
             var hunter=NetEnemy.All.First(e=>e.waterEnemy);
             Check(hunter.transform.position.y<session.FloodLevel,"Drowned hunter starts inside the flooded deck");
@@ -464,7 +469,7 @@ namespace SinkScrapt
             yield return SupplyDrop(player,session);
             for(int iteration=0;iteration<iterations;iteration++) {
                 yield return MoveTo(player,BoatLayout.HelmStand,PlayerZone.Boat,0);
-                yield return Act(player,ActionKind.TravelShip);
+                yield return Act(player,ActionKind.TravelShip,(int)ship);
                 yield return Wait(()=>session.InExpedition,80,"Expedition load "+iteration);
                 yield return Wait(()=>WorldZone.Interior!=null&&WorldZone.Interior.nodes.Count>0,10,"Interior geometry");
                 var layout=InteriorLayout.Unpack(session.BlueprintCode);
@@ -489,7 +494,7 @@ namespace SinkScrapt
                 GameHUD.Instance.OpenSettings();
                 var world=WorldZone.Interior;
                 // Walk from a corridor into every room on each deck (through the bilge on deck 1), in the real CharacterController.
-                for(int floor=0;floor<3;floor++) {
+                for(int floor=0;floor<ShipGrid.Decks;floor++) {
                     layout.StraightRun(floor,1,out var corridorCell,out _,out _);int start=world.CellNode(floor,corridorCell.x,corridorCell.y);
                     var rooms=layout.rooms.Where(r=>r.floor==floor).ToList();if(iteration>0)rooms=rooms.Take(2).ToList();
                     foreach(var room in rooms) {
@@ -499,8 +504,10 @@ namespace SinkScrapt
                         yield return WalkPath(player,world,path,session.Seed);
                     }
                 }
-                Check(true,"CharacterController walked from corridors into rooms on 3 decks: "+iteration);
-                // Bilge: deck 1 is waist-deep from the start, wading not swimming.
+                Check(true,"CharacterController walked from corridors into rooms on "+ShipGrid.Decks+" decks of the "+ship+" ship: "+iteration);
+                // Bilge: deck 1 is waist-deep from the start, wading not swimming. Walking every room of a large cruise seed can
+                // outlast the steady phase on the real clock, so restart the clock first (the flood is checked later).
+                session.Started.Value=app.TimeNow;for(int k=0;k<3;k++)yield return null;
                 layout.StraightRun(0,1,out var bilgeCell,out _,out _);
                 yield return MoveTo(player,WorldZone.InteriorOffset+ShipGrid.Center(0,bilgeCell.x,bilgeCell.y)+Vector3.up*.05f,PlayerZone.Interior);
                 for(int k=0;k<10;k++){player.controller.Move(Vector3.down*.2f);yield return null;}
@@ -514,7 +521,8 @@ namespace SinkScrapt
                     Check(player.transform.position.y>top-.2f,"Physical stair "+i+" reaches deck "+(Mathf.RoundToInt((top-2)/3)+1)+": "+iteration);
                 }
                 if(iteration==0) {
-                    Check(layout.entries[0].floor==2&&layout.entries.Select(e=>e.floor).Distinct().Count()>=2,"Entry A is on the top deck; B and C are on other decks ("+string.Join(",",layout.entries.Select(e=>e.floor+1))+")");
+                    if(ship==ShipKind.Cruise)Check(layout.Atrium!=null&&layout.entries[0].floor==layout.Atrium.floor&&layout.Atrium.Contains(layout.entries[0].x,layout.entries[0].z)&&layout.entries[1].floor>1&&layout.entries[2].floor>1&&layout.entries[1].floor!=layout.entries[2].floor,"Main door A opens into the lobby on deck 2; emergency exits B and C are on two upper decks ("+string.Join(",",layout.entries.Select(e=>e.floor+1))+")");
+                    else Check(layout.entries[0].floor==2&&layout.entries.Select(e=>e.floor).Distinct().Count()>=2,"Entry A is on the top deck; B and C are on other decks ("+string.Join(",",layout.entries.Select(e=>e.floor+1))+")");
                     for(int portal=0;portal<layout.entries.Count;portal++) {
                         var entry=layout.entries[portal];
                         layout.StraightRun(entry.floor,1,out var deckCell,out _,out _);int routeStart=world.CellNode(entry.floor,deckCell.x,deckCell.y),routeEnd=world.airlockNodes[portal];
@@ -580,8 +588,9 @@ namespace SinkScrapt
                     player.Inventory.selected=player.Inventory.items.FindIndex(i=>i.uid==loot.Uid);player.PublishInventory();yield return Act(player,ActionKind.Drop);
                     Check(session.Campaign.cargo.Any(i=>i.uid==loot.Uid),"Scrap dropped back on deck");
                     var secured=session.Campaign.cargo.Select(i=>i.uid).ToArray();
-                    session.Started.Value=app.TimeNow-ShipTimeline.At(ShipTimeline.DeckLevel,app.balance.duration);yield return new WaitForSecondsRealtime(.5f);
-                    Check(Mathf.Abs(WorldZone.Exterior.ship.position.y+9)<.2f&&Mathf.Abs(WorldZone.Interior.water.position.y-9)<.2f,"Exterior deck alignment and interior flooding share clock");
+                    session.Started.Value=app.TimeNow-ShipTimeline.At(ShipTimeline.DeckLevel,session.Duration);yield return new WaitForSecondsRealtime(.5f);
+                    float level=ShipTimeline.ExteriorDeck-ShipTimeline.BoatDeck;
+                    Check(Mathf.Abs(WorldZone.Exterior.ship.position.y+level)<.2f&&Mathf.Abs(WorldZone.Interior.water.position.y-level)<.2f,"Exterior deck ("+ShipTimeline.ExteriorDeck+" m) level with the boat and interior flooding share the clock ("+ship+")");
                     Check(secured.Length>0&&session.Campaign.cargo.Any(i=>i.rack>0),"Boat holds deck cargo and a racked tool before the wipe");
                     foreach(var crew in NetPlayer.All.ToArray())crew.Kill();
                     yield return Wait(()=>session.Phase.Value==GamePhase.Ready||session.Phase.Value==GamePhase.Harbor,30,"Wipe extraction");
@@ -590,7 +599,7 @@ namespace SinkScrapt
                     Check(!secured.Any(onDeck.Contains),"Lost boat cargo is removed from the deck");
                     var wiped=CampaignSave.Read(app.SavePath,out _);Check(wiped.cargo.Count==0,"The checkpoint after a wipe holds no boat cargo");
                 } else {
-                    session.Started.Value=app.TimeNow-app.balance.duration+.3f;yield return new WaitForSecondsRealtime(.6f);
+                    session.Started.Value=app.TimeNow-session.Duration+.3f;yield return new WaitForSecondsRealtime(.6f);
                     yield return Wait(()=>!session.InExpedition&&session.Phase.Value!=GamePhase.Loading,30,"Automatic extraction");
                     Check(session.Campaign.cargo.Count==before+1,"Automatic departure preserves cargo "+iteration);
                 }

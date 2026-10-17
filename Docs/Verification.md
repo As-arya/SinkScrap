@@ -9,7 +9,74 @@ This file records observed results, separate from the goals and acceptance crite
 - Five gameplay scenes, four NGO network prefabs, generated materials, balance configuration, the retro post pass, the dusk sky, and the particle material are built through the Editor asset builder (`SinkScrapt / Build Alpha Assets`, `Build Retro Look`, `Build Atmosphere`).
 - The Unity Cloud project already associated with this project was linked earlier. A private online room was created and joined; the host generated a private code, and the runtime joined the proximity, radio, and spectator Vivox channels. The temporary room was closed. This confirms one online service handshake, not a four-player service test, and it was **not repeated** after the latest changes.
 
-## Windows build, two-player local QA with a visible client: feedback batch 2 seen from a client (observed 2026-10-15, latest)
+## Cruise ship art and loot (observed 2026-10-16, latest)
+
+Same machine (RTX 5050 Laptop GPU, Ryzen 7 250, 16 GB, Windows 11), Unity `6000.6.5f1`, Blender 5.2.2 via the MCP server. **Editor only, solo** (one listen host, local transport). No Windows build, no clients.
+
+- **Built:** six cruise-only scrap items (ids 19–24) with Blender models and icons, plus eleven cruise furniture models wired into `WorldCruise.cs`. Details are in `Docs/BlenderAssets.md` build list 7 and PRD 6.8.
+- **Import:** all 17 FBX files load from `Resources`. Their bounds match the Blender sizes, and the axes match the existing convention. Item icons 19–24 load as sprites.
+- **Editor tests: 32/32 passed.** The 31 earlier tests pass. The new `CruiseScrapStaysOnTheCruiseShipAndSaves` test checks five things:
+  - Every loot table holds scrap worth 20–150.
+  - Cruise ids appear only in the cruise tables.
+  - Cruise large loot is two-handed.
+  - Machinery rooms use the cargo tables.
+  - A deck of the six cruise items saves and loads.
+- **Cruise runtime QA (`Tools/StartQaCruise.cs`): passed, 264 checks over 3 cruise expeditions.** Frame rate: 59.8 average / 43.7 1%-low FPS (Game view 502x459). The 1%-low is still below the 45 FPS target.
+  - The first run failed at "Deck 1 stands in waist-deep bilge water". QA had walked every room of a large seed on the real clock past 6:20, when the flood overtakes the bilge: 430 s had elapsed, and the water stood at 4.37 m against 2.9 m.
+  - This was a QA timing issue, not a game change. `QaRunner` now restarts the expedition clock just before the bilge check. The rerun passed.
+- **Loot on a live cruise wreck (first QA expedition, read from the host):** 66 items.
+  - 44 cruise scrap: 5 champagne, 10 trays, 6 chips, 8 bells, 6 jewellery boxes, 9 gramophones.
+  - 13 industrial scrap from crew and machinery rooms.
+  - 6 keys and 3 batteries.
+  - During QA the player carried a champagne bottle with its icon in the hand slot.
+- **Cargo-ship regression (`Tools/StartQa.cs`): passed, 367 checks over 10 expeditions.** Frame rate: 59.8 average / 49.4 1%-low FPS. No game exceptions were logged during either run; the usual `NetworkVariable is written to…` warning appeared.
+- **Visual spot checks:** an offscreen review camera with one point light, on seeds 12345 and 1. Captures are in `Artifacts/CruiseArt/`.
+  - Lobby: modelled pillars, the grand piano, the lit hanging chandelier, the fallen chandelier and the sofa groups.
+  - Cabin: bed with nightstand.
+  - Suite: king bed and single bed.
+  - Casino: slot machines with the code's lit screens in their bezels; model chairs round the card tables.
+  - Restaurant: clothed tables, chairs upright and toppled.
+- **Not verified:**
+  - No multiplayer client has seen the new models or items.
+  - Nobody has played it by hand.
+  - GTX 1650 performance with the extra meshes has not been measured. The furniture adds draw calls over the hidden primitives, and renderer counts were not re-measured.
+
+## Abandoned cruise ship, second level (observed 2026-10-16)
+
+Same machine (RTX 5050 Laptop GPU, Ryzen 7 250, 16 GB, Windows 11), Unity `6000.6.5f1`, **in the Editor only, solo** (one listen host, local transport). No Windows build, no clients, no online services, no Blender (its MCP server did not connect; all cruise geometry is built in code).
+
+- **Editor tests: 31/31 passed** (the 25 existing tests plus `CruiseTests`, 5 tests). New coverage:
+  - 1,000 cruise seeds validate with no fallback: 75–90 rooms on five decks, the lobby fixed as room 0 (6 x 7 cells on deck 2), entry A inside it, three open arches, B and C on two different decks among 3–5, 4–7 locked doors, 12 stair shafts, the straight runs QA needs, deck-1 themes (crew and machinery only) and more than 15 passenger cabins or suites. More than 950 distinct corridor networks. Packed blueprints stay under 4,000 bytes (largest seen while measuring 300 seeds: 2,232).
+  - 200 seeds: openings are symmetric, the hull is closed except at the three entries, nothing opens into the atrium, and the atrium's 42 cells have no slab.
+  - Determinism, pack/unpack round trip, boundary seeds, and the fallback seed generate directly; the same seed on the cargo ship is unchanged and valid.
+  - Rejected blueprints: a corridor in the atrium, entry A outside the lobby, both exits on one deck, a locked arch, no atrium, a cargo-only room type, a wrong generator version, a cruise blueprint read as a cargo ship, an arch on the cargo ship.
+  - Timeline: depth 0 until 5:00, monotonic to 12:00, water exactly at decks 2–5 at 7:30, 8:40, 10:00 and 10:50, the promenade (y 11) level with the boat deck at 9:45, the funnel under at 12:00, stretching with a longer duration, monotonic interior water.
+- **Cruise runtime QA in the Editor (solo, `Tools/StartQaCruise.cs`): passed, 262 checks over 3 cruise expeditions** (`Artifacts/QA-Editor-Cruise/qa-result.json`). Observed:
+  - Two hull stalkers spawn; the scripted stalker screams, chases, telegraphs, hits for 30, grabs/lifts (0.90 m) and throws for 22, follows a flare, and stays clear of walls for about 1,250 frames per expedition while hunting through doors. The drowned hunter appears once water reaches deck 2 and hits a swimmer for 35.
+  - First expedition: 6 locked doors with one key each; the key-and-door checks pass with a cabin-style door leaf.
+  - **The CharacterController walked from a corridor into every one of the 82 rooms on all five decks** (first layout; two rooms per deck on the next two), through the bilge on deck 1. All 12 stair shafts were climbed in each of the three layouts. The hull held at the sampled cells.
+  - Entry A is in the lobby on deck 2; B and C were on decks 5 and 4. The physical route to each vestibule and both directions of all three portals work.
+  - The rope sags 1.48 m; heavy scrap climbs the rope to the gangway platform and back; scrap dropped on the boat becomes cargo; the boat computer shows the live deck map and shuts a hazard down.
+  - At the deck-level milestone the exterior ship sits 10 m down and the interior water is at 10 m (the promenade at 11 m is level with the 1 m boat deck). A full wipe empties the boat; automatic departure keeps cargo; the island sale and checkpoint pass.
+  - Frame times (Editor, RTX 5050, Game view about 883x464): **59.6 average / 43.2 1%-low FPS**. This is below the 45 FPS 1%-low target, on a stronger GPU than the target. The cargo regression run on the same machine measured 49.1. The cruise interior has about 11,350 renderers (9,784 static-batched), 60 lights, and 393 draw calls seen from the lobby; the main thread was about 5.5 ms there. The low may come from QA teleports and scene loads rather than steady play; that has not been separated. **GTX 1650 performance on the cruise ship is unverified and is a risk.**
+- **Cargo-ship regression (`Tools/StartQa.cs`, after the shared refactor): passed, 363 checks over 10 expeditions** (`Artifacts/QA-Editor/qa-result.json`). The Editor log has no game exceptions; the `NetworkVariable is written to…` warning still appears once per expedition, as before.
+- **Visual spot checks** (offscreen review camera with a small light, captures in `Artifacts/Cruise/`):
+  - The exterior from the sea: hull, three-tier superstructure, funnel, lifeboats.
+  - The gangway platform with the rope down to the boat, and the hull stair to the promenade.
+  - The promenade deck with an emergency exit.
+  - Inside: the lobby (pillars, fountain, piano, sofa groups, lit chandelier, balustrade of the gallery above) and the atrium seen from the gallery; a passenger corridor with numbered cabin doors; a cabin; a restaurant with laid tables; the casino (card tables, lit slot machines); a suite (king bed, wardrobes); the boutique (glass cases, mannequin); the main-door and emergency-exit vestibules.
+  - **Defects found and fixed:**
+    - Several walls rolled a "RESEPSIONIS" desk. There is now one, on a fixed wall.
+    - The vestibule welcome line and the exit sign text overflowed. Both were resized; the final exit-sign width was compiled but **not re-captured**.
+  - **Seen but not changed:** the hull and superstructure paint reads as rust-stained, brownish off-white at midday rather than clean white.
+- **Not verified:**
+  - Playing the level by hand.
+  - Monsters patrolling the cruise ship over a whole 12-minute run.
+  - Two or more players on the cruise ship (blueprint and geometry agreement between peers, late joiners, the exterior rebuild when `NetSession.Ship` arrives after the scene loads).
+  - A Windows build, the GTX 1650 target, and the online path.
+  - The cruise arrival cutscene framing (it was not captured).
+
+## Windows build, two-player local QA with a visible client: feedback batch 2 seen from a client (observed 2026-10-15)
 
 Same machine (RTX 5050 Laptop GPU, Ryzen 7 250, 15.3 GB, Windows 11, 1536x960 desktop at 125% scaling), Unity `6000.6.5f1`. **Two players on one PC over local transport**: a windowed host (1280x720) and one *visible, rendering* client (windowed 1920x1080). No headless clients, no second machine, no online services.
 

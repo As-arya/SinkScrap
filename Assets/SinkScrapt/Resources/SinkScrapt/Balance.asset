@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Balance
   m_EditorClassIdentifier: SinkScrapt.Runtime::SinkScrapt.BalanceConfig
   duration: 600
+  cruiseDuration: 720
   breath: 35
   drowningDamage: 10
   walkSpeed: 4.5

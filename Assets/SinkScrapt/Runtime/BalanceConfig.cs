@@ -6,6 +6,8 @@ namespace SinkScrapt
     {
         [Tooltip("Expedition length in seconds. The sinking milestones in ShipTimeline scale with it (nominal 600).")]
         public float duration=600;
+        [Tooltip("Expedition length on the abandoned cruise ship; its milestones (ShipProfile.Cruise) scale with it (nominal 720: steady for five minutes, then seven of sinking).")]
+        public float cruiseDuration=720;
         public float breath=35;
         public float drowningDamage=10;
         public float walkSpeed=4.5f;

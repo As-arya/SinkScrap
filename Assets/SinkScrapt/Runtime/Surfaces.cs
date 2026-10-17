@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace SinkScrapt
 {
-    public enum Surface { Plate, RustPlate, Diamond, Grating, Bulkhead, DeckPaint, Wood, Corrugated, Rock, Concrete, Hazard, Hull, Sand, Tile, Planks }
+    public enum Surface { Plate, RustPlate, Diamond, Grating, Bulkhead, DeckPaint, Wood, Corrugated, Rock, Concrete, Hazard, Hull, Sand, Tile, Planks, Carpet, Wallpaper, Marble }
 
     // Procedural PS1-style surface kit. Every texture is a small, tileable, point-filtered image synthesised from seeded noise,
     // so all peers render the same thing and there are no third-party image files. Boxes get meshes whose UVs are measured in
@@ -18,8 +18,8 @@ namespace SinkScrapt
         // Metres covered by one repeat of each texture.
         public static float Tile(Surface s) => s switch {
             Surface.Diamond=>1.2f, Surface.Grating=>1f, Surface.Hazard=>1f, Surface.Tile=>1.2f, Surface.Bulkhead=>3f, Surface.Concrete=>3f,
-            Surface.Rock=>5f, Surface.Sand=>5f, Surface.Hull=>4f, Surface.Planks=>2.4f, _=>2f };
-        static float Smoothness(Surface s) => s switch {Surface.Tile=>.45f,Surface.Diamond=>.4f,Surface.Plate=>.32f,Surface.Bulkhead=>.28f,Surface.Rock=>.08f,Surface.Sand=>.05f,Surface.Wood=>.12f,Surface.Planks=>.12f,_=>.2f};
+            Surface.Rock=>5f, Surface.Sand=>5f, Surface.Hull=>4f, Surface.Planks=>2.4f, Surface.Carpet=>1.6f, Surface.Wallpaper=>3f, Surface.Marble=>2.4f, _=>2f };
+        static float Smoothness(Surface s) => s switch {Surface.Tile=>.45f,Surface.Marble=>.55f,Surface.Carpet=>.02f,Surface.Wallpaper=>.1f,Surface.Diamond=>.4f,Surface.Plate=>.32f,Surface.Bulkhead=>.28f,Surface.Rock=>.08f,Surface.Sand=>.05f,Surface.Wood=>.12f,Surface.Planks=>.12f,_=>.2f};
 
         public static Material Get(Surface s,Color tint)
         {
@@ -186,6 +186,39 @@ namespace SinkScrapt
                 case Surface.Tile: {
                     bool grout=Mod(x,32)<2||Mod(y,32)<2;bool dark=((x/32)+(y/32))%2==0;float v=grout?.3f:(dark?.55f:.82f)+fine;
                     var c=new Color(v,v*.98f,v*.93f,1);return Color.Lerp(c,new Color(.3f,.27f,.2f),Mathf.SmoothStep(.55f,.75f,Fbm(x,y,4,141))*.55f);
+                }
+                case Surface.Carpet: {
+                    // Cruise-line carpet (tint it): a diamond lattice with a medallion in every other diamond, gold border
+                    // lines, mildew blooms and threadbare, darkened patches.
+                    int cx=Mod(x,32),cy=Mod(y,32);float u=Mathf.Abs(cx-15.5f)/16,w=Mathf.Abs(cy-15.5f)/16;float dia=u+w;
+                    float v=.62f+Hash(x,y,151)*.12f;
+                    if(Mathf.Abs(dia-.92f)<.06f)v=1.25f;else if(dia<.34f&&((x/32)+(y/32))%2==0)v=dia<.18f?1.15f:.45f;
+                    var c=new Color(v,v*.88f,v*.8f,1);
+                    float mould=Mathf.SmoothStep(.6f,.74f,Fbm(x,y,4,153));float worn=Mathf.SmoothStep(.55f,.72f,Fbm(x,y,8,155));
+                    c=Color.Lerp(c,new Color(.42f,.4f,.33f),worn*.45f);return Color.Lerp(c,new Color(.12f,.16f,.1f),mould*.7f);
+                }
+                case Surface.Wallpaper: {
+                    // 3 m repeat: dark wood wainscot to 0.95 m with a rail, then striped damask paper peeling and water-stained.
+                    float metres=y/(float)N*3f;
+                    if(metres<.95f) {
+                        float grain=Noise(x,y*10,8,161)*.3f;float v=.38f+grain+fine;if(Mod(x,42)==0||metres>.88f)v*=.6f;
+                        var wood=new Color(v*.95f,v*.66f,v*.42f,1);return Color.Lerp(wood,new Color(.1f,.08f,.06f),Mathf.SmoothStep(.6f,.75f,Fbm(x,y,4,163))*.6f);
+                    }
+                    int sx=Mod(x,16);float pattern=sx<2?.72f:(sx>=7&&sx<9)?.95f:.85f;
+                    int my=Mod(y,24);float motif=Mathf.Abs(Mod(x,16)-8)+Mathf.Abs(my-12)<5&&Mod(x,32)<16==(Mod(y,48)<24)?.12f:0;
+                    float vv=pattern+motif+fine;var paper=new Color(vv,vv*.95f,vv*.82f,1);
+                    float stain=Mathf.Clamp01(Noise(x*3,y,8,165)-.55f)*2*Mathf.Clamp01((metres-1)/2);
+                    float peel=Mathf.SmoothStep(.66f,.7f,Fbm(x,y,8,167));
+                    paper=Color.Lerp(paper,new Color(.45f,.38f,.25f),stain*.8f);
+                    return Color.Lerp(paper,new Color(.32f,.33f,.3f)*(.8f+grime*.3f),peel);
+                }
+                case Surface.Marble: {
+                    // Big polished tiles in two tones with dark veins, dulled by grime toward the edges.
+                    bool grout=Mod(x,64)<1||Mod(y,64)<1;bool dark=((x/64)+(y/64))%2==0;
+                    float vein=Mathf.Abs(Noise(x+y*.5f,y,8,171)-.5f)<.035f?.55f:1;
+                    float v=(dark?.42f:.86f)*vein+fine+(Fbm(x,y,8,173)-.5f)*.12f;if(grout)v*=.5f;
+                    var c=dark?new Color(v*.7f,v*.82f,v*.78f,1):new Color(v,v*.97f,v*.92f,1);
+                    return Color.Lerp(c,new Color(.25f,.22f,.17f),Mathf.SmoothStep(.58f,.76f,Fbm(x,y,4,175))*.6f);
                 }
             }
             return Color.magenta;

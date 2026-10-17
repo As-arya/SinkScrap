@@ -1,6 +1,6 @@
 # SinkScrapt
 
-Alpha horor salvage first-person untuk 1–4 pemain. Ekspedisi berlangsung 10 menit: kapal kargo stabil selama 4 menit pertama lalu tenggelam pada 6 menit terakhir. Interior tiga lantai, letak pintu masuk, pintu terkunci, loot, serta bahaya berubah pada setiap ekspedisi. Barang di kapal kecil hanya selamat jika minimal satu kru kembali ke kapal; jika seluruh kru mati atau tertinggal, semua barang di kapal ikut hilang.
+Alpha horor salvage first-person untuk 1–4 pemain. Ekspedisi di kapal kargo berlangsung 10 menit: kapal stabil selama 4 menit pertama lalu tenggelam pada 6 menit terakhir; kapal pesiar terbengkalai yang jauh lebih besar berlangsung 12 menit (tenggelam pada 7 menit terakhir). Interior tiga lantai (kapal kargo) atau lima lantai (kapal pesiar), letak pintu masuk, pintu terkunci, loot, serta bahaya berubah pada setiap ekspedisi. Barang di kapal kecil hanya selamat jika minimal satu kru kembali ke kapal; jika seluruh kru mati atau tertinggal, semua barang di kapal ikut hilang.
 
 The detailed English product and technical plan is in [`Docs/PRD.md`](Docs/PRD.md). Claude Code should begin with [`CLAUDE.md`](CLAUDE.md), which explains the project workflow and core gameplay invariants.
 
@@ -13,7 +13,8 @@ The detailed English product and technical plan is in [`Docs/PRD.md`](Docs/PRD.m
 5. Pakai kemudi dan pilih kapal kargo. Setibanya, cutscene kedatangan diputar dan jam ekspedisi baru berjalan setelahnya.
 6. Panjat tali, masuk melalui palka A (selalu di dek atas), B, atau C (bisa langsung ke dek bawah), dan bawa scrap kembali ke kapal kecil. Barang yang ditaruh (G) di kapal kecil tetap di tempatnya, tetapi **hilang semua jika tidak ada kru yang kembali ke kapal** saat berangkat. Alat bisa disimpan di **Rak Alat** dalam kabin. Tab **PETA** di komputer kapal menunjukkan dek tempat rekan yang dipantau berada (← / → ganti kru), level air, sisa waktu, dan tombol untuk mematikan bahaya selama 30 detik.
 7. Gunakan kemudi untuk berangkat, atau kembali sebelum keberangkatan otomatis. Kru tetap di laut di antara ekspedisi.
-8. Setelah hari ketiga (ekspedisi ketiga), berlayar ke **Pulau Dermaga 04** lewat kemudi. Jual scrap ke **pedagang** (penyelam tua berhelm kuningan), lalu selesaikan kuota di terminal. Target pertama $600; kegagalan mereset kampanye.
+8. Di kemudi, setiap hari bisa memilih **Kapal Kargo S-04** atau **Kapal Pesiar Bintang Samudra** (lihat bagian "Kapal pesiar terbengkalai" di bawah).
+9. Setelah hari ketiga (ekspedisi ketiga), berlayar ke **Pulau Dermaga 04** lewat kemudi. Jual scrap ke **pedagang** (penyelam tua berhelm kuningan), lalu selesaikan kuota di terminal. Target pertama $600; kegagalan mereset kampanye.
 
 ## Kontrol
 
@@ -40,6 +41,19 @@ Barang besar harus tetap dipegang, membatasi penggunaan alat, dan membuat panjat
 Senter memakai baterai (sekitar 150 detik per baterai, `flashlightBattery`); baterai dijual lewat komputer kapal ($10) dan tersebar di dalam kapal. Senter menerangi ruangan dengan sorot lebar (titik terang di tengah dan cahaya redup di sekitarnya), tanpa berkas cahaya yang digambar. Setiap ruangan punya satu pintu berengsel (lebar 1,1 m) dengan empat gaya: baja kedap air berjendela bulat, papan kayu berjendela bulat, baja berkarat, dan pintu kabin bercat dengan jendela kecil. Beberapa pintu ruangan terkunci; satu **kunci** per pintu tersebar di bagian kapal yang bisa dicapai, dan di balik pintu terkunci selalu ada barang berharga. Kunci tidak bisa dibawa pulang. Saat berenang, dorong ke arah tepian rendah (hingga sekitar 0,65 m di atas air) untuk naik; di darat, Space di depan rintangan rendah (hingga 1 m) untuk memanjat. Pagar kapal kecil (1,15 m) tetap tidak bisa dilompati.
 
 Di menu, **MONSTER: MATI (TES)** membuat host memulai ekspedisi tanpa monster (juga `--no-monsters`). Pilihan ini disimpan.
+
+## Kapal pesiar terbengkalai
+
+Level kedua yang jauh lebih besar, dipilih di kemudi untuk hari mana pun dalam siklus kuota.
+
+- **12 menit:** kapal diam selama 5 menit pertama, lalu tenggelam selama 7 menit terakhir. Air mencapai dek 2 (lobi dan pintu utama A) sekitar menit 7:30, dek promenade sejajar dengan kapal kecil pada menit 9:45, dan cerobong hilang di bawah air pada menit 12.
+- **Lima dek, 75–90 ruangan** di atas grid 13 x 30 sel (52 x 120 m per dek): kabin penumpang, suite, restoran, dapur, teater, bar, kasino, butik, klinik, binatu, kabin kru, gudang, ruang mesin, dan ruang listrik. Lorong penumpang berkarpet dan berwalpaper; dek 1 tetap industrial dan tergenang air setinggi pinggang sejak awal.
+- **Lobi utama** (tetap di tempat yang sama setiap kunjungan): ruangan 24 x 28 m di dek 2 yang terbuka dua lantai sebagai atrium sampai dek 3, dikelilingi galeri berpagar. Ada pilar marmer, air mancur kering, grand piano, sofa, meja resepsionis, satu lampu gantung yang masih menyala dan satu yang sudah jatuh. Tiga lengkungan lebar menuju lorong dan dua tangga besar (turun ke dek 1, naik ke galeri).
+- **Tiga pintu masuk:** **PINTU UTAMA A** di dinding lambung lobi, di depan platform tangga kapal tempat tali dari kapal kecil terikat. Platform dan pintu A terendam sekitar menit 7:30; setelah itu kru harus berenang ke tangga penyelamatan. **KELUAR DARURAT B dan C** ada di dek promenade (dinding bangunan atas), dicapai lewat tangga baja di lambung; di dalam, keduanya berada di dua dek atas yang berbeda.
+- Dua Penguntit Lambung sejak awal (maksimal dua), 46–60 scrap ditambah satu per ruangan terkunci, 4–7 pintu terkunci.
+- **Scrap khusus kapal pesiar** di ruangan penumpang: Botol sampanye ($25), Nampan perak ($35), Keping kasino ($45), Lonceng kapal ($65), Kotak perhiasan ($95, berkilau), dan Gramofon ($125, dua tangan). Kabin kru, dapur, gudang, ruang mesin, dan ruang listrik tetap berisi scrap industri kapal kargo. Scrap ini tidak muncul di kapal kargo.
+- Furnitur utama (tempat tidur, sofa, kursi berlengan, meja makan dan kursinya, mesin slot, grand piano, pilar lobi, lampu gantung yang tergantung dan yang jatuh) adalah model Blender (`Models/Furniture/cruise_*`).
+- Kode: `ShipProfile.cs` (profil tiap kapal: grid, jadwal tenggelam, jumlah ruangan, tabel loot), `CruiseLayout.cs` (generator), `WorldCruise.cs` (interior, furnitur, lobi), `WorldCruiseExterior.cs` (eksterior). QA: `Tools/StartQaCruise.cs` di Editor atau `--qa-ship cruise` pada build.
 
 ## Tampilan, suara, dan monster
 
@@ -99,6 +113,6 @@ Menu Editor **SinkScrapt / Build Alpha Assets** membuat aset awal melalui API Ed
 
 QA runtime hanya aktif melalui `Tools/StartQa.cs` atau argumen `--qa-host`. QA menjalankan pembelian, traversal tiga lantai pada sepuluh map (setiap tangga, ketiga pintu masuk, berjalan dari lorong ke ruangan), pintu terkunci dan kunci, baterai senter, memanjat tepian dari air, tali yang melengkung, siang/malam, peta komputer kapal, pemeriksaan air got setinggi pinggang, uji dorong ke dinding agar penyelam tidak bisa keluar lambung, pickup, penyimpanan, kematian tim, ekstraksi otomatis, penjualan idempotent, dan checkpoint. Monster/bahaya dinonaktifkan khusus pada fixture traversal agar pengujian geometri tidak terganggu.
 
-Argumen build untuk pengujian lokal: `--local-host`, `--local-client`, `--profile <nama>`, `--save-path <path>`, `--qa-host`, `--new-campaign`, `--no-monsters`, dan `--qa-capture`. `--qa-host` menunggu empat pemain, menulis `qa-result.json` di sebelah checkpoint QA, lalu keluar dengan kode 0/1. Dengan lebih dari satu pemain, QA juga bertanya kepada setiap klien apa yang tampil di layarnya (karakter rekan dan animasinya, sorot senter, cutscene, hitung mundur paket di HUD, cengkeraman monster); klien yang dijalankan dengan `--qa-capture` menyimpan tangkapan layar `client-*.png` di folder `--save-path`-nya.
+Argumen build untuk pengujian lokal: `--local-host`, `--local-client`, `--profile <nama>`, `--save-path <path>`, `--qa-host`, `--new-campaign`, `--no-monsters`, `--qa-capture`, dan `--qa-ship cruise` (QA tiga ekspedisi di kapal pesiar). `--qa-host` menunggu empat pemain, menulis `qa-result.json` di sebelah checkpoint QA, lalu keluar dengan kode 0/1. Dengan lebih dari satu pemain, QA juga bertanya kepada setiap klien apa yang tampil di layarnya (karakter rekan dan animasinya, sorot senter, cutscene, hitung mundur paket di HUD, cengkeraman monster); klien yang dijalankan dengan `--qa-capture` menyimpan tangkapan layar `client-*.png` di folder `--save-path`-nya.
 
 Build Windows menggunakan lima scene pada Build Settings. Build alpha terbaru ada di `Builds/StandaloneWindows64/SinkScrapt.exe` (jalankan langsung untuk main solo). QA pada build: host `SinkScrapt.exe --qa-host --new-campaign --save-path <folder>\campaign.json` bersama tiga klien `SinkScrapt.exe --local-client --profile p2 -batchmode -nographics` (`--qa-players N` untuk jumlah pemain lain); hasil ada di `qa-result.json` di folder checkpoint. Lihat `Docs/Verification.md` untuk hasil yang benar-benar sudah diperiksa dan batas pengujian.

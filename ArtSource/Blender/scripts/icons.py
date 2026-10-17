@@ -1,4 +1,4 @@
-# Item icons for the HUD slots, the belt slot and the boat computer shop: every ItemCatalog item (ids 0..18) rendered from
+# Item icons for the HUD slots, the belt slot and the boat computer shop: every ItemCatalog item (ids 0..24) rendered from
 # its game model in a three-quarter view with a key/fill/rim light on a transparent background, then outlined in near
 # black with a soft drop shadow and box-filtered from 256 to 128 px. Output: Resources/SinkScrapt/Icons/item_<id>.png
 # (Editor/MediaImportRules.cs imports them as sprites). Run with items.blend open; the newer torch and the supply crate
@@ -18,7 +18,10 @@ for name in ("items_palette", "items_palette_emission"):
 TMP = OUT + "_render.png"
 ITEMS = ["scrap_bolt_box", "scrap_steel_plate", "scrap_valve", "scrap_pressure_gauge", "scrap_ship_lamp", "scrap_old_battery",
          "scrap_broken_radio", "scrap_circuit_board", "scrap_brass_compass", "scrap_electric_motor", "scrap_industrial_pump",
-         "scrap_generator", "tool_flashlight", "tool_radio", "tool_oxygen_tank", "tool_flare", "tool_battery", "item_key", "prop_supply_crate"]
+         "scrap_generator", "tool_flashlight", "tool_radio", "tool_oxygen_tank", "tool_flare", "tool_battery", "item_key", "prop_supply_crate",
+         "scrap_champagne", "scrap_silver_tray", "scrap_casino_chips", "scrap_ship_bell", "scrap_jewellery_box", "scrap_gramophone"]
+# Set ONLY = [ids] before exec() to re-render just those icons (for example the cruise scrap, 19-24).
+ONLY = globals().get("ONLY")
 
 # The game's torch and crate live in characters.blend.
 with bpy.data.libraries.load(r"D:/UNITYProjecy/SinkScrapt/SinkScrapt/ArtSource/Blender/characters.blend") as (src, dst):
@@ -99,6 +102,8 @@ def finish(path_in, path_out):
 
 made = []
 for i, name in enumerate(ITEMS):
+    if ONLY is not None and i not in ONLY:
+        continue
     src_ob = appended.get(name) if name in ("tool_flashlight", "prop_supply_crate") else bpy.data.objects.get(name)
     if src_ob is None:
         continue

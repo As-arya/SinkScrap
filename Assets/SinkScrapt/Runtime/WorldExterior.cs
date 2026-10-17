@@ -10,7 +10,7 @@ namespace SinkScrapt
         static readonly Color Antifouling=new(.42f,.12f,.09f),OffWhite=new(.80f,.79f,.73f),WindowLit=new(1f,.78f,.45f),WindowDark=new(.05f,.08f,.09f),Yellow=new(.78f,.6f,.18f);
 
         // Hull with a sloped side, painted above `waterline` and antifouling red below it. UVs are in metres.
-        static GameObject HullMesh(string name,Transform parent,Vector3 position,float width,float length,float bottom,float top,Color paint,float waterline)
+        static GameObject HullMesh(string name,Transform parent,Vector3 position,float width,float length,float bottom,float top,Color paint,float waterline,float flare=.65f)
         {
             var go=new GameObject(name,typeof(MeshFilter),typeof(MeshRenderer),typeof(MeshCollider));go.transform.SetParent(parent,false);go.transform.localPosition=position;
             var verts=new List<Vector3>();var uvs=new List<Vector2>();var upper=new List<int>();var lower=new List<int>();
@@ -21,7 +21,7 @@ namespace SinkScrapt
                 into.AddRange(new[]{start,start+1,start+2,start,start+2,start+3});
             }
             var section=new Vector3[4,4];float[] zs={-length*.5f,-length*.5f+3,length*.5f-5,length*.5f+5};float[] widths={width*.38f,width*.5f,width*.5f,width*.025f};
-            for(int i=0;i<4;i++){float w=widths[i];section[i,0]=new Vector3(-w*.65f,bottom,zs[i]);section[i,1]=new Vector3(w*.65f,bottom,zs[i]);section[i,2]=new Vector3(w,top,zs[i]);section[i,3]=new Vector3(-w,top,zs[i]);}
+            for(int i=0;i<4;i++){float w=widths[i];section[i,0]=new Vector3(-w*flare,bottom,zs[i]);section[i,1]=new Vector3(w*flare,bottom,zs[i]);section[i,2]=new Vector3(w,top,zs[i]);section[i,3]=new Vector3(-w,top,zs[i]);}
             float t=Mathf.Clamp01((waterline-bottom)/(top-bottom));
             for(int i=0;i<3;i++)for(int j=0;j<4;j++) {
                 Vector3 a=section[i,j],b=section[i,(j+1)%4],c=section[i+1,(j+1)%4],d=section[i+1,j];

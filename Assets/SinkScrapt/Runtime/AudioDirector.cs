@@ -88,7 +88,7 @@ namespace SinkScrapt
             bool inGame=SinkApp.Instance!=null&&SinkApp.Instance.Connected&&session!=null&&player!=null&&player.IsSpawned;
             var zone=inGame?player.Zone.Value:PlayerZone.Boat;bool under=inGame&&player.Underwater;
             bool expedition=inGame&&session.InExpedition;bool interior=inGame&&zone==PlayerZone.Interior;
-            float progress=expedition?Mathf.Clamp01((float)session.Elapsed/Mathf.Max(1,SinkApp.Instance.balance.duration)):0;
+            float progress=expedition?Mathf.Clamp01((float)session.Elapsed/Mathf.Max(1,session.Duration)):0;
             float threat=inGame?NetEnemy.ThreatTo(player):0;
             bool loading=inGame&&session.Phase.Value==GamePhase.Loading;float day=SkyClock.Daylight;
             // Ambience targets. The menu shows the sea, so it hears the sea (and a faint drone under it).

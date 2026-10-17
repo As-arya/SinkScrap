@@ -20,9 +20,9 @@ namespace SinkScrapt
         public string LastMenuMode=>menuMode;
         static readonly Color LcdBack=new(.10f,.14f,.09f,.97f),LcdInk=new(.64f,.88f,.46f),LcdDim=new(.22f,.32f,.18f);
         static readonly (string title,string body)[] Pages={
-            ("SELAMAT DATANG DI KAPAL KECIL","Kamu dan kru menyelam ke kapal kargo yang sedang tenggelam dan membawa pulang scrap berharga.\n\nSatu kuota = 3 hari (3 ekspedisi). Setelah hari ketiga, berlayar ke pulau untuk menjual scrap ke pedagang dan menutup kuota. Target pertama: $600 penjualan. Modal awal tim: $120."),
+            ("SELAMAT DATANG DI KAPAL KECIL","Kamu dan kru menyelam ke kapal yang sedang tenggelam (kapal kargo atau kapal pesiar terbengkalai yang jauh lebih besar) dan membawa pulang scrap berharga.\n\nSatu kuota = 3 hari (3 ekspedisi). Setelah hari ketiga, berlayar ke pulau untuk menjual scrap ke pedagang dan menutup kuota. Target pertama: $600 penjualan. Modal awal tim: $120."),
             ("PESAN ALAT","Tidak ada alat gratis. Pesan di KOMPUTER KAPAL (tab TOKO), kapan saja: di laut, di pulau, atau saat ekspedisi.\n\n  Senter $15  •  Baterai $10  •  Radio $25  •  Tabung oksigen $80  •  Flare $20\n\nPaket diterjunkan dengan parasut ke kapal kecil sekitar 30 detik kemudian. Tekan E pada paket untuk membukanya."),
-            ("KAPAL KECIL DAN TALI","Di kabin ada KEMUDI untuk berangkat, KOMPUTER KAPAL, dan RAK ALAT.\n\nDi kapal kargo, panjat tali dengan W / S lalu masuk lewat PALKA A (dek atas), B atau C. Letak pintu di dalam berubah setiap ekspedisi. Ekspedisi 10 menit: kapal mulai tenggelam pada menit 4 dan hilang di menit 10. Lihat JAM di kiri atas."),
+            ("KAPAL KECIL DAN TALI","Di kabin ada KEMUDI untuk berangkat, KOMPUTER KAPAL, dan RAK ALAT.\n\nDi kapal kargo, panjat tali dengan W / S lalu masuk lewat PALKA A (dek atas), B atau C. Letak pintu di dalam berubah setiap ekspedisi. Ekspedisi 10 menit: kapal mulai tenggelam pada menit 4 dan hilang di menit 10.\n\nDi KAPAL PESIAR (12 menit, tenggelam mulai menit 5) tali terikat di depan PINTU UTAMA A ke lobi, yang lebih dulu terendam. Keluar darurat B dan C ada di dek promenade, lewat tangga di lambung."),
             ("MUATAN DI KAPAL","Barang yang kamu letakkan di kapal kecil (G) tetap di tempatnya dan disimpan bersama kampanye.\n\n<color=#E64033>Tetapi jika seluruh kru mati atau tidak ada yang kembali ke kapal kecil saat berangkat, SEMUA barang di kapal (dek dan rak alat) ikut hilang.</color> Minimal satu kru harus pulang."),
             ("SENTER DAN SABUK","Kamu punya 4 slot tangan dan 1 SLOT SABUK untuk senter atau radio. [5] memindahkan senter/radio yang dipegang ke sabuk.\n\n[F] menyalakan senter kapan saja: senter tetap menyala saat kamu ganti barang atau membawa barang dua tangan. Satu baterai sekitar 2,5 menit; pegang baterai lalu klik kiri untuk memasangnya."),
             ("BAHAYA DI DALAM","Di dalam kapal hampir gelap gulita. PENGUNTIT LAMBUNG memburu di lorong kering: ia bisa memukul atau MENCENGKERAM lalu MELEMPARMU. PEMBURU TENGGELAM menguasai dek yang terendam.\n\nBeberapa pintu terkunci: cari KUNCI di dalam kapal. Di balik pintu terkunci selalu ada barang berharga."),
@@ -217,7 +217,7 @@ namespace SinkScrapt
             string phase=s.Phase.Value.ToString();if(phase!=lastPhase) {lastPhase=phase;if(s.Phase.Value==GamePhase.Loading)Close();if(s.Phase.Value==GamePhase.Harbor||s.Phase.Value==GamePhase.Ready)MaybeShowGuide();}
             if(s.LastResult.Length>0&&s.LastResult!=shownResult) {shownResult=s.LastResult;OpenResults();}
             var c=s.Campaign;
-            watchCaption.text=s.Phase.Value==GamePhase.Loading?"JAM  •  BERLAYAR":s.InExpedition?"JAM  •  KAPAL KARGO":s.Phase.Value==GamePhase.Harbor?"JAM  •  PULAU":"JAM  •  LAUT";
+            watchCaption.text=s.Phase.Value==GamePhase.Loading?"JAM  •  BERLAYAR":s.InExpedition?"JAM  •  "+s.Profile.name.ToUpperInvariant():s.Phase.Value==GamePhase.Harbor?"JAM  •  PULAU":"JAM  •  LAUT";
             departLabel.text=s.Phase.Value==GamePhase.Departing?"BERANGKAT  "+Mathf.CeilToInt((float)(s.DepartureAt.Value-app.TimeNow))+" DTK":"";
             objective.text="<color=#F7AA3F>▸</color> "+Objective(s,p);
             money.text=ItemCatalog.Money(c.credits);
@@ -248,7 +248,7 @@ namespace SinkScrapt
                         :f.action==ActionKind.Terminal?"Toko • peta kapal • level air • kontrol bahaya"
                         :f.action==ActionKind.Sell?"Jual scrap dari kapal kecil"
                         :f.action==ActionKind.Door?(f.title=="Pintu terkunci"?(p.Inventory.items.Any(i=>i.Definition.kind==ItemKind.Key)?"<color=#F7AA3F>Pakai kunci</color> untuk membuka":"<color=#E64033>Butuh kunci</color> • cari di dalam kapal"):"Pintu kapal")
-                        :f.action==ActionKind.Portal?(p.Zone.Value==PlayerZone.Interior?"Kembali ke geladak kapal kargo":"Masuk ke dalam kapal kargo"):"";
+                        :f.action==ActionKind.Portal?(p.Zone.Value==PlayerZone.Interior?"Kembali ke geladak "+s.Profile.name:"Masuk ke dalam "+s.Profile.name):"";
                 }
             }
             spectator.text=p.Alive.Value?"":"KAMU JADI SPECTATOR\n<size=22><color=#8AA79F>← / → pilih rekan   •   V bicara dengan sesama spectator</color></size>";
@@ -289,16 +289,17 @@ namespace SinkScrapt
                 case GamePhase.Departing: return "<color=#E64033>Segera naik ke kapal kecil!</color>";
                 case GamePhase.Expedition:
                     if(s.Remaining<120)return "<color=#E64033>KEMBALI KE KAPAL KECIL SEKARANG!</color>";
-                    return p.Zone.Value==PlayerZone.Boat?"Panjat tali menuju kapal kargo (W / S).":p.Zone.Value==PlayerZone.Exterior?"Masuk lewat PALKA A, B atau C di dek.":carryingScrap?"Bawa scrap ke kapal kecil dan taruh (G) di dek.":"Cari scrap berharga. Awasi air dan monster.";
+                    bool cruise=s.Ship.Value==ShipKind.Cruise;
+                    return p.Zone.Value==PlayerZone.Boat?"Panjat tali menuju "+s.Profile.name+" (W / S).":p.Zone.Value==PlayerZone.Exterior?(cruise?"Masuk lewat PINTU UTAMA A, atau naik tangga lambung ke KELUAR DARURAT B / C.":"Masuk lewat PALKA A, B atau C di dek."):carryingScrap?"Bawa scrap ke kapal kecil dan taruh (G) di dek.":"Cari scrap berharga. Awasi air dan monster.";
                 case GamePhase.Harbor:
                     if(c.expeditionsUsed>=3&&c.cargo.Any(x=>x.Definition.kind==ItemKind.Scrap))return "Jual scrap ke PEDAGANG SCRAP di pulau.";
                     if(c.expeditionsUsed>=3)return "Selesaikan KUOTA di terminal pulau.";
-                    return "Pakai KEMUDI untuk kembali ke kapal kargo.";
+                    return "Pakai KEMUDI untuk berangkat ke kapal karam berikutnya.";
                 default:
                     if(package)return "Paket pasokan sudah tiba: tekan E pada paket.";
                     if(c.expeditionsUsed>=3)return "Pakai KEMUDI untuk berlayar ke pulau.";
                     if(!p.Inventory.All.Any()&&c.orders.Count==0&&c.credits>=15)return "Pesan alat di KOMPUTER KAPAL.";
-                    return "Pakai KEMUDI untuk berangkat ke kapal kargo.";
+                    return "Pakai KEMUDI: pilih kapal kargo atau kapal pesiar.";
             }
         }
         // ---- Menus ---------------------------------------------------------------------------------------------------------------
@@ -320,7 +321,7 @@ namespace SinkScrapt
             // Test mode: the host starts expeditions without any monster.
             Ui.Button(menu,"MONSTER: "+(app.noMonsters?"MATI (TES)":"AKTIF"),new Vector2(360,-810),new Vector2(300,52),()=>{app.SetNoMonsters(!app.noMonsters);BuildMenu();},true,app.noMonsters,"",21);
             Ui.Button(menu,"KELUAR",new Vector2(40,-870),new Vector2(620,48),()=>{if(Application.isEditor)app.notice="Hentikan Play Mode untuk keluar dari Editor.";else Application.Quit();},true,false,"",21);
-            Ui.Label(menu,"1–4 KRU  •  "+Mathf.RoundToInt(app.balance.duration/60)+" MENIT  •  3 EKSPEDISI PER KUOTA\nAlpha 0.3  •  Windows  •  Bahasa Indonesia",new Vector2(40,-930),new Vector2(620,50),16,Theme.Muted);
+            Ui.Label(menu,"1–4 KRU  •  "+Mathf.RoundToInt(app.balance.duration/60)+"–"+Mathf.RoundToInt(app.balance.cruiseDuration/60)+" MENIT  •  3 EKSPEDISI PER KUOTA\nAlpha 0.3  •  Windows  •  Bahasa Indonesia",new Vector2(40,-930),new Vector2(620,50),16,Theme.Muted);
         }
         void ConnectionMenu(bool local)
         {
@@ -358,15 +359,22 @@ namespace SinkScrapt
             Header("KEMUDI",s.InExpedition?"Kru yang tidak kembali ke kapal kecil akan hilang. Jika tidak ada kru di kapal, semua muatan kapal ikut hilang.":"Pilih tujuan. Perjalanan berlangsung otomatis.");
             if(s.InExpedition) {
                 bool departing=s.Phase.Value==GamePhase.Departing;
-                Ui.Button(card,departing?"BERANGKAT SEDANG BERJALAN":"BERANGKAT DALAM 5 DETIK",new Vector2(44,-210),new Vector2(852,76),()=>{p.Act(ActionKind.Depart);Close();},!departing,true,"tinggalkan kapal kargo");
+                Ui.Button(card,departing?"BERANGKAT SEDANG BERJALAN":"BERANGKAT DALAM 5 DETIK",new Vector2(44,-210),new Vector2(852,76),()=>{p.Act(ActionKind.Depart);Close();},!departing,true,"tinggalkan "+s.Profile.name);
                 Ui.Button(card,"BATALKAN KEBERANGKATAN",new Vector2(44,-300),new Vector2(852,70),()=>{p.Act(ActionKind.CancelDeparture);Close();},departing);
                 Row("Pastikan semua kru sudah naik ke kapal kecil.\nBarang yang masih kamu bawa ikut pulang; barang di bangkai kapal hilang.",new Vector2(44,-400),new Vector2(852,100),22,Theme.Muted);
             } else {
-                int used=s.Campaign.expeditionsUsed;bool island=WorldZone.Island!=null;
-                Ui.Button(card,"KAPAL KARGO S-04",new Vector2(44,-210),new Vector2(852,96),()=>{p.Act(ActionKind.TravelShip);Close();},used<3,true,"hari "+Mathf.Min(3,used+1)+" / 3");
-                Row(used<3?Mathf.RoundToInt(SinkApp.Instance.balance.duration/60)+" menit. Kapal mulai tenggelam pada menit "+Mathf.RoundToInt(ShipTimeline.At(ShipTimeline.SinkStart,SinkApp.Instance.balance.duration)/60)+". Interior tiga lantai dan letak pintunya berubah setiap ekspedisi."+(s.NoMonsters.Value?" Mode tanpa monster.":""):"Tiga hari sudah terpakai. Jual scrap dan selesaikan kuota di pulau.",new Vector2(64,-312),new Vector2(812,60),20,Theme.Muted);
-                Ui.Button(card,"PULAU DERMAGA 04",new Vector2(44,-400),new Vector2(852,86),()=>{p.Act(ActionKind.TravelIsland);Close();},used>=3&&!island,used>=3&&!island,island?"sudah di pulau":used>=3?"jual • kuota":"setelah hari 3");
-                Row("Pulau hanya dikunjungi untuk menutup siklus: jual scrap ke pedagang dan evaluasi kuota. Alat dipesan lewat KOMPUTER KAPAL.",new Vector2(64,-496),new Vector2(812,60),20,Theme.Muted);
+                int used=s.Campaign.expeditionsUsed;bool island=WorldZone.Island!=null;var balance=SinkApp.Instance.balance;
+                // One button per wreck; the timings come from each ship's own timeline.
+                string Timing(ShipProfile ship) {
+                    float duration=ship.Duration(balance);
+                    return Mathf.RoundToInt(duration/60)+" menit, tenggelam mulai menit "+Mathf.RoundToInt(ship.sinkStart/ship.nominal*duration/60)+".";
+                }
+                Ui.Button(card,ShipProfile.Cargo.title,new Vector2(44,-196),new Vector2(852,84),()=>{p.Act(ActionKind.TravelShip,(int)ShipKind.Cargo);Close();},used<3,true,"hari "+Mathf.Min(3,used+1)+" / 3");
+                Row(used<3?Timing(ShipProfile.Cargo)+" Tiga dek, sekitar 27 ruangan; masuk lewat PALKA A, B, C."+(s.NoMonsters.Value?" Mode tanpa monster.":""):"Tiga hari sudah terpakai. Jual scrap dan selesaikan kuota di pulau.",new Vector2(64,-286),new Vector2(812,56),20,Theme.Muted);
+                Ui.Button(card,ShipProfile.Cruise.title,new Vector2(44,-352),new Vector2(852,84),()=>{p.Act(ActionKind.TravelShip,(int)ShipKind.Cruise);Close();},used<3,true,used<3?"besar • lebih banyak scrap":"hari "+Mathf.Min(3,used+1)+" / 3");
+                Row(used<3?Timing(ShipProfile.Cruise)+" Lima dek, 75–90 ruangan, lobi raksasa di dek 2. Pintu utama A cepat terendam; keluar darurat B dan C di dek atas.":"",new Vector2(64,-442),new Vector2(812,56),20,Theme.Muted);
+                Ui.Button(card,"PULAU DERMAGA 04",new Vector2(44,-520),new Vector2(852,80),()=>{p.Act(ActionKind.TravelIsland);Close();},used>=3&&!island,used>=3&&!island,island?"sudah di pulau":used>=3?"jual • kuota":"setelah hari 3");
+                Row("Pulau hanya dikunjungi untuk menutup siklus: jual scrap ke pedagang dan evaluasi kuota. Alat dipesan lewat KOMPUTER KAPAL.",new Vector2(64,-608),new Vector2(812,60),20,Theme.Muted);
             }
         }
         static string ToolInfo(int id) => id switch {
@@ -414,6 +422,8 @@ namespace SinkScrapt
         CanvasGroup screenGroup;
         readonly List<(RectTransform dot,NetPlayer player)> termCrew=new();
         readonly List<TMP_Text> termHazards=new();
+        // Hazard index shown on each row of termHazards.
+        readonly List<int> termHazardIds=new();
         TMP_Text termInfo,termFocusName,termFocusState,termHeader,termMapNote,termDeckTabs;
         Image termWater;
         bool terminalOpen;
@@ -509,7 +519,7 @@ namespace SinkScrapt
             if(termTab==1) {BuildTerminalShop(s,p);ScreenOverlays();UpdateTerminalTexts(s);return;}
             Glow(screen,"[← / →] GANTI KRU YANG DIPANTAU",new Vector2(26,-812),new Vector2(700,30),18,PhosDim);
             if(!online) {
-                Glow(screen,"> TIDAK ADA SINYAL\n\n> Komputer terhubung ke kapal kargo selama ekspedisi.\n> Berangkat dengan KEMUDI. Setelah tiba, layar ini menunjukkan\n  peta dek tempat kru berada, level air, dan kontrol bahaya.\n\n_",new Vector2(40,-100),new Vector2(1380,600),28,Phos);
+                Glow(screen,"> TIDAK ADA SINYAL\n\n> Komputer terhubung ke kapal karam selama ekspedisi.\n> Berangkat dengan KEMUDI. Setelah tiba, layar ini menunjukkan\n  peta dek tempat kru berada, level air, dan kontrol bahaya.\n\n_",new Vector2(40,-100),new Vector2(1380,600),28,Phos);
                 ScreenOverlays();UpdateTerminalTexts(s);return;
             }
             // Map viewport.
@@ -533,10 +543,13 @@ namespace SinkScrapt
             var balance=SinkApp.Instance.balance;
             Glow(screen,"KONTROL BAHAYA  <color=#3E9468>mati "+Mathf.RoundToInt(balance.hazardOffSeconds)+" dtk / jeda "+Mathf.RoundToInt(balance.hazardCooldown)+" dtk</color>",new Vector2(x0,-484),new Vector2(546,28),19,Phos);
             if(wreck.hazards.Count==0)Glow(screen,"> tidak ada bahaya terdeteksi",new Vector2(x0,-518),new Vector2(546,30),19,PhosDim);
-            for(int i=0;i<Mathf.Min(5,wreck.hazards.Count);i++) {
-                var hazard=wreck.hazards[i];int index=i;bool ready=SinkApp.Instance.TimeNow>=s.HazardReadyAt(i);
-                float y=-516-i*56;
-                Glow(screen,"#"+(i+1)+" "+(hazard.electric?"LISTRIK":"UAP")+" D"+(hazard.deck+1)+" "+hazard.label,new Vector2(x0,y-4),new Vector2(300,26),17,Phos);
+            // Five rows: the hazards nearest the followed diver's deck first (the cruise ship has more than five).
+            int focusDeck=focus!=null&&focus.Zone.Value==PlayerZone.Interior?DeckOf(focus.transform.position):0;
+            termHazardIds.Clear();termHazardIds.AddRange(Enumerable.Range(0,wreck.hazards.Count).OrderBy(i=>Mathf.Abs(wreck.hazards[i].deck-focusDeck)).ThenBy(i=>i).Take(5));
+            for(int row=0;row<termHazardIds.Count;row++) {
+                int index=termHazardIds[row];var hazard=wreck.hazards[index];bool ready=SinkApp.Instance.TimeNow>=s.HazardReadyAt(index);
+                float y=-516-row*56;
+                Glow(screen,"#"+(index+1)+" "+(hazard.electric?"LISTRIK":"UAP")+" D"+(hazard.deck+1)+" "+hazard.label,new Vector2(x0,y-4),new Vector2(300,26),17,Phos);
                 termHazards.Add(Glow(screen,"",new Vector2(x0,y-28),new Vector2(300,24),16,PhosDim));
                 ScreenButton(screen,"MATIKAN",new Vector2(x0+376,y),new Vector2(170,48),()=>p.Act(ActionKind.HazardOff,index),ready,18);
             }
@@ -585,7 +598,7 @@ namespace SinkScrapt
             for(int z=0;z<ShipGrid.Rows;z++)for(int x=0;x<ShipGrid.Columns;x++) {
                 var kind=layout.Kind(deck,x,z,out _);if(kind==CellKind.Void)continue;
                 var cell=Ui.Rect("Cell",mapContent,Ui.TopLeft,Ui.Center,CellPoint(x,z),new Vector2(MapCell,MapCell));
-                Ui.Fill(cell,kind==CellKind.Corridor?PhosFloor:kind==CellKind.Room?new Color(.07f,.2f,.14f):new Color(.25f,.18f,.06f));
+                Ui.Fill(cell,kind==CellKind.Corridor?PhosFloor:kind==CellKind.Room?new Color(.07f,.2f,.14f):kind==CellKind.Atrium?new Color(.03f,.08f,.12f):new Color(.25f,.18f,.06f));
                 if(kind==CellKind.Stair)Glow(cell,"▲",Vector2.zero,new Vector2(MapCell,MapCell),26,new Color(1,.68f,.28f,.8f),TextAlignmentOptions.Center);
             }
             foreach(var room in layout.rooms.Where(r=>r.floor==deck)) {
@@ -658,24 +671,25 @@ namespace SinkScrapt
             if(termOrders!=null)termOrders.text=s.Campaign.orders.Count==0?"<color=#2A6A4C>> tidak ada</color>":string.Join("\n",s.Campaign.orders.Select(o=>"> "+string.Join(", ",o.items.Select(i=>ItemCatalog.Get(i).title))+"  <color=#F7AA3F>"+Mathf.CeilToInt(Mathf.Max(0,o.remaining))+" dtk</color>"));
             if(termInfo==null)return;
             var wreck=WorldZone.Interior;float depth=s.Depth,flood=s.FloodLevel;
-            int floodDeck=flood>=ShipTimeline.FloorHeight(2)?3:flood>=ShipTimeline.FloorHeight(1)?2:1;float gap=ShipTimeline.CargoDeck-depth-ShipTimeline.BoatDeck;
-            termInfo.text="LEVEL AIR   <size=34><color=#F7AA3F>"+depth.ToString("0.0")+" m</color></size>\nair sampai dek "+floodDeck+"\ngeladak kargo "+(gap>=0?"+":"")+gap.ToString("0.0")+" m dari kapal kecil\nSISA WAKTU  "+TimeSpan.FromSeconds(s.Remaining).ToString(@"mm\:ss");
-            if(termWater!=null)termWater.rectTransform.anchorMax=new Vector2(1,Mathf.Clamp01(flood/(ShipTimeline.FloorHeight(2)+3)));
+            int floodDeck=1;for(int d=1;d<ShipGrid.Decks;d++)if(flood>=ShipTimeline.FloorHeight(d))floodDeck=d+1;
+            bool cruise=s.Ship.Value==ShipKind.Cruise;float gap=ShipTimeline.ExteriorDeck-depth-ShipTimeline.BoatDeck;
+            termInfo.text="LEVEL AIR   <size=34><color=#F7AA3F>"+depth.ToString("0.0")+" m</color></size>\nair sampai dek "+floodDeck+"\n"+(cruise?"dek promenade ":"geladak kargo ")+(gap>=0?"+":"")+gap.ToString("0.0")+" m dari kapal kecil\nSISA WAKTU  "+TimeSpan.FromSeconds(s.Remaining).ToString(@"mm\:ss");
+            if(termWater!=null)termWater.rectTransform.anchorMax=new Vector2(1,Mathf.Clamp01(flood/(ShipTimeline.FloorHeight(ShipGrid.Decks-1)+3)));
             if(focus!=null) {
                 int index=crew.IndexOf(focus)+1;var color=ColorUtility.ToHtmlStringRGB(CrewColors[focus.OwnerClientId%4]);
                 termFocusName.text="<color=#"+color+">"+focus.Name.Value.ToString()+"</color>"+(focus.IsOwner?" <size=18>(kamu)</size>":"")+"  <size=18>"+index+"/"+crew.Count+"</size>";
                 bool inside=focus.Zone.Value==PlayerZone.Interior;
-                string where=!focus.Alive.Value?"<color=#E64033>SINYAL HILANG</color>":inside?"DEK "+(DeckOf(focus.transform.position)+1)+(focus.Underwater?"  <color=#5AB4FF>DI BAWAH AIR</color>":""):focus.Zone.Value==PlayerZone.Exterior?"GELADAK KAPAL KARGO":focus.Zone.Value==PlayerZone.Boat?"KAPAL KECIL":"PULAU";
+                string where=!focus.Alive.Value?"<color=#E64033>SINYAL HILANG</color>":inside?"DEK "+(DeckOf(focus.transform.position)+1)+(focus.Underwater?"  <color=#5AB4FF>DI BAWAH AIR</color>":""):focus.Zone.Value==PlayerZone.Exterior?"GELADAK "+s.Profile.name.ToUpperInvariant():focus.Zone.Value==PlayerZone.Boat?"KAPAL KECIL":"PULAU";
                 var torch=focus.Inventory.Torch?.charge??-1;
                 float hp=focus.Health.Value;string Bar(float v)=>new string('█',Mathf.Clamp(Mathf.RoundToInt(v*10),0,10))+new string('░',10-Mathf.Clamp(Mathf.RoundToInt(v*10),0,10));
                 termFocusState.text="LOKASI    "+where+"\nKESEHATAN "+Bar(hp/100)+" "+Mathf.CeilToInt(hp)+"\nNAPAS     "+Bar(focus.Oxygen.Value/Mathf.Max(1,app.balance.breath))+" "+Mathf.CeilToInt(focus.Oxygen.Value)+" dtk\nSENTER    "+(torch<0?"tidak ada":Mathf.CeilToInt(torch*100)+"%"+(focus.Inventory.lightOn?" • nyala":""))+"\nBAWAAN    "+focus.Inventory.items.Count+"/4"+(focus.Inventory.items.Any(i=>i.Definition.kind==ItemKind.Key)?" • ada kunci":"");
-                if(termMapNote!=null)termMapNote.text=inside&&focus.Alive.Value?"":!focus.Alive.Value?"> SINYAL "+focus.Name.Value.ToString().ToUpperInvariant()+" HILANG":"> "+focus.Name.Value.ToString().ToUpperInvariant()+" TIDAK DI DALAM KAPAL KARGO";
+                if(termMapNote!=null)termMapNote.text=inside&&focus.Alive.Value?"":!focus.Alive.Value?"> SINYAL "+focus.Name.Value.ToString().ToUpperInvariant()+" HILANG":"> "+focus.Name.Value.ToString().ToUpperInvariant()+" TIDAK DI DALAM "+s.Profile.name.ToUpperInvariant();
             }
-            if(termDeckTabs!=null) {var tabs=new System.Text.StringBuilder();for(int d=0;d<ShipGrid.Decks;d++)tabs.Append(d==termDeck?"<color=#77FFB2>[ DEK "+(d+1)+" ]</color>   ":"<color=#2A6A4C>  DEK "+(d+1)+"    </color>");tabs.Append("<color=#2A6A4C>▲ tangga  A/B/C masuk  <color=#E64033>■</color> kunci</color>");termDeckTabs.text=tabs.ToString();}
+            if(termDeckTabs!=null) {var tabs=new System.Text.StringBuilder();for(int d=0;d<ShipGrid.Decks;d++){string name=(ShipGrid.Decks>3?"D":"DEK ")+(d+1);tabs.Append(d==termDeck?"<color=#77FFB2>[ "+name+" ]</color>  ":"<color=#2A6A4C>  "+name+"   </color>");}tabs.Append("<color=#2A6A4C>▲ tangga  A/B/C masuk  <color=#E64033>■</color> kunci</color>");termDeckTabs.text=tabs.ToString();}
             var now=app.TimeNow;
-            for(int i=0;i<termHazards.Count;i++) {
+            for(int row=0;row<termHazards.Count&&row<termHazardIds.Count;row++) {int i=termHazardIds[row];
                 bool off=s.HazardSuppressed(i);double wait=s.HazardReadyAt(i)-now;
-                termHazards[i].text=off?"<color=#84D378>MATI "+Mathf.CeilToInt((float)(s.HazardOffUntil(i)-now))+" dtk</color>":wait>0?"JEDA "+Mathf.CeilToInt((float)wait)+" dtk":"<color=#E64033>AKTIF</color>";
+                termHazards[row].text=off?"<color=#84D378>MATI "+Mathf.CeilToInt((float)(s.HazardOffUntil(i)-now))+" dtk</color>":wait>0?"JEDA "+Mathf.CeilToInt((float)wait)+" dtk":"<color=#E64033>AKTIF</color>";
             }
         }
         void UpdateTerminal(NetSession s)

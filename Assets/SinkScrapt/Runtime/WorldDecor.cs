@@ -61,11 +61,14 @@ namespace SinkScrapt
             var random=new System.Random(layout.seed*7919+1301);
             float R()=>(float)random.NextDouble();
             int written=0;var scrawlOrder=new List<int>();for(int i=0;i<Scrawls.Length;i++)scrawlOrder.Insert(random.Next(scrawlOrder.Count+1),i);
+            // The cruise ship dresses fewer of its many cells (ShipProfile.decorDensity) so the decal count stays affordable.
+            float density=layout.Profile.decorDensity;
             for(int f=0;f<ShipGrid.Decks;f++)for(int z=0;z<ShipGrid.Rows;z++)for(int x=0;x<ShipGrid.Columns;x++) {
                 var kind=layout.Kind(f,x,z,out int id);if(kind!=CellKind.Corridor&&kind!=CellKind.Room)continue;
+                if(density<1&&R()>density)continue;
                 var c=ShipGrid.Center(f,x,z);bool room=kind==CellKind.Room;
                 for(int dir=0;dir<4;dir++) {
-                    if(layout.Open(f,x,z,dir))continue;
+                    if(layout.Open(f,x,z,dir)||layout.Balcony(f,x,z,dir))continue;
                     var n=Dir3(dir);var along=new Vector3(-n.z,0,n.x);var face=c+n*(ShipGrid.Cell*.5f-.1f);var inward=-n;
                     float roll=R(),slide=(R()-.5f)*2.4f;
                     // Daubed messages on long closed corridor walls, a handful per wreck.
@@ -100,7 +103,7 @@ namespace SinkScrapt
             }
             // Claw gouges on some closed doors, on the corridor side.
             for(int i=0;i<zone.doors.Count;i++) {
-                if(R()>.22f)continue;var door=zone.doors[i];var leaf=door.hinges[0].GetChild(0);
+                if(R()>.22f||zone.doors[i]==null)continue;var door=zone.doors[i];var leaf=door.hinges[0].GetChild(0);
                 foreach(float face in new[]{-1f,1f})if(R()<.6f)Decal(leaf,DecalOf(DecalKind.Scratches),new Vector3(InteriorDoor.LeafWidth*(.35f+R()*.3f),1.0f+R()*.6f,face*.036f),new Vector3(0,0,face),new Vector2(.45f,.75f),(R()-.5f)*40);
             }
         }

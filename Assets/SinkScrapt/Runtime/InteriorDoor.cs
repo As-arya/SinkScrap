@@ -56,6 +56,10 @@ namespace SinkScrapt
             var room=layout.DoorRoom(index);float roll=Hash01(layout.seed,index,17);
             return (room?.type??1) switch {
                 2=>roll<.6f?DoorStyle.Wood:DoorStyle.Cabin,
+                // Cruise ship: passenger rooms behind painted or varnished doors, service rooms behind steel.
+                CruiseLayout.Cabin or CruiseLayout.Suite=>roll<.65f?DoorStyle.Cabin:DoorStyle.Wood,
+                CruiseLayout.Restaurant or CruiseLayout.Theatre or CruiseLayout.Bar or CruiseLayout.Casino or CruiseLayout.Boutique=>roll<.6f?DoorStyle.Wood:DoorStyle.Cabin,
+                CruiseLayout.Clinic or CruiseLayout.Laundry=>roll<.6f?DoorStyle.Steel:DoorStyle.Cabin,
                 3=>roll<.5f?DoorStyle.Cabin:DoorStyle.Wood,
                 4 or 5=>roll<.7f?DoorStyle.Rusted:DoorStyle.Steel,
                 6=>roll<.6f?DoorStyle.Steel:DoorStyle.Cabin,
@@ -65,9 +69,10 @@ namespace SinkScrapt
         public static bool WoodDoor(InteriorLayout layout,int index) => DoorStyleOf(layout,index)==DoorStyle.Wood;
 
         // Door `index` of the blueprint, centred on its wall. Swings into the room side (for a door between two rooms, the far one).
+        // Null for an arch: it has no leaf (WorldZone.doors keeps blueprint indices, so the slot stays empty).
         static InteriorDoor Door(WorldZone zone,InteriorLayout layout,int index)
         {
-            var d=layout.doors[index];var n=Dir3(d.dir);var along=new Vector3(-n.z,0,n.x);
+            var d=layout.doors[index];if(d.arch)return null;var n=Dir3(d.dir);var along=new Vector3(-n.z,0,n.x);
             var near=layout.Kind(d.floor,d.x,d.z,out _);var far=new Vector2Int(d.x,d.z)+ShipGrid.Dirs[d.dir];
             bool intoNear=near==CellKind.Room&&layout.Kind(d.floor,far.x,far.y,out _)!=CellKind.Room;
             var swing=intoNear?-n:n;

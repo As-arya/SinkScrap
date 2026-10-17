@@ -28,6 +28,10 @@ namespace SinkScrapt
             // Room doors (kit_door_*) and their glass; glass alpha is the opacity.
             {"DoorGrey",new(.58f,.62f,.61f)},{"DoorRust",new(.66f,.52f,.44f)},{"DoorWood",new(.72f,.50f,.32f)},{"DoorCream",new(.78f,.75f,.64f)},
             {"Chrome",new(.78f,.79f,.80f)},{"Porthole",new(.10f,.16f,.17f,.42f)},{"Wired",new(.14f,.20f,.17f,.55f)},
+            // Cruise furniture (cruise_*, the WorldCruise colours).
+            {"DarkWood",new(.36f,.20f,.12f)},{"Mahogany",new(.45f,.22f,.14f)},{"Linen",new(.78f,.76f,.70f)},{"Gold",new(.72f,.56f,.24f)},
+            {"PianoBlack",new(.06f,.05f,.05f)},{"Porcelain",new(.86f,.86f,.82f)},{"MarbleWhite",new(.88f,.86f,.82f)},
+            {"Crystal",new(1f,.86f,.60f)},{"DeadCrystal",new(.75f,.70f,.55f)},
         };
         static GameObject Load(string path)
         {
@@ -95,10 +99,12 @@ namespace SinkScrapt
             for(int i=0;i<root.childCount;i++) {var found=FindBone(root.GetChild(i),name);if(found!=null)return found;}
             return null;
         }
-        // Asset ids per ItemCatalog definition id (Docs/BlenderAssets.md, build list 1). The package (18) is the supply crate.
+        // Asset ids per ItemCatalog definition id (Docs/BlenderAssets.md, build list 1). The package (18) is the supply crate,
+        // built by ItemVisual (null here); 19-24 are the cruise-ship scrap.
         public static readonly string[] ItemModels={"scrap_bolt_box","scrap_steel_plate","scrap_valve","scrap_pressure_gauge","scrap_ship_lamp","scrap_old_battery",
             "scrap_broken_radio","scrap_circuit_board","scrap_brass_compass","scrap_electric_motor","scrap_industrial_pump","scrap_generator",
-            "tool_flashlight","tool_radio","tool_oxygen_tank","tool_flare","tool_battery","item_key"};
+            "tool_flashlight","tool_radio","tool_oxygen_tank","tool_flare","tool_battery","item_key",null,
+            "scrap_champagne","scrap_silver_tray","scrap_casino_chips","scrap_ship_bell","scrap_jewellery_box","scrap_gramophone"};
         static readonly Dictionary<int,Sprite> icons=new();
         // The item's rendered icon (ArtSource/Blender/scripts/icons.py -> Resources/SinkScrapt/Icons/item_<id>.png), or null.
         public static Sprite Icon(int definitionId)

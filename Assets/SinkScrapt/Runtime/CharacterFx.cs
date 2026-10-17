@@ -142,7 +142,7 @@ namespace SinkScrapt
         {
             Playing=true;cam.enabled=true;group.transform.gameObject.SetActive(true);
             bool wreck=destination==1;var c=s.Campaign;
-            title.text=wreck?"KAPAL KARGO S-04":"PULAU DERMAGA 04";
+            title.text=wreck?s.Profile.title:"PULAU DERMAGA 04";
             subtitle.text=wreck?"EKSPEDISI "+Mathf.Clamp(c.expeditionsUsed+1,1,3)+" / 3   •   "+TimeSpan(s.Hour)+"   •   [SPASI] lewati":"JUAL SCRAP   •   SELESAIKAN KUOTA   •   [SPASI] lewati";
         }
         static string TimeSpan(float hour) {int h=Mathf.FloorToInt(hour)%24,m=Mathf.FloorToInt((hour-Mathf.Floor(hour))*60);return h.ToString("00")+":"+m.ToString("00");}
@@ -155,14 +155,19 @@ namespace SinkScrapt
         void Shoot(float t)
         {
             bool wreck=destination==1;float depth=NetSession.Instance!=null?NetSession.Instance.Depth:0;
+            bool cruise=NetSession.Instance!=null&&NetSession.Instance.Ship.Value==ShipKind.Cruise;
             float cut=length*.48f;Vector3 from,to,lookA,lookB;float u;
             if(t<cut) {
                 u=t/cut;
-                if(wreck) {from=new Vector3(66,7,-66);to=new Vector3(50,8,-48);lookA=new Vector3(14,8-depth,-4);lookB=new Vector3(10,9-depth,0);}
+                // The cruise ship is far bigger: the establishing shot pulls back along its starboard side.
+                if(wreck&&cruise) {from=new Vector3(95,12,-120);to=new Vector3(72,14,-92);lookA=new Vector3(-2,14-depth,-14);lookB=new Vector3(-4,15-depth,4);}
+                else if(wreck) {from=new Vector3(66,7,-66);to=new Vector3(50,8,-48);lookA=new Vector3(14,8-depth,-4);lookB=new Vector3(10,9-depth,0);}
                 else {from=new Vector3(-6,6,30);to=new Vector3(8,7,20);lookA=new Vector3(46,5,-6);lookB=new Vector3(48,5,-10);}
             } else {
                 u=(t-cut)/(length-cut);
-                if(wreck) {from=new Vector3(27.5f,3.4f,-31);to=new Vector3(25.8f,2.8f,-22);lookA=new Vector3(6,12-depth,6);lookB=new Vector3(4,11-depth,10);}
+                // Past the boat's stern up at the lobby door, the gangway platform and the hull stair.
+                if(wreck&&cruise) {from=new Vector3(27.5f,3.4f,-31);to=new Vector3(25.8f,2.8f,-22);lookA=new Vector3(12,10-depth,-8);lookB=new Vector3(13,8-depth,0);}
+                else if(wreck) {from=new Vector3(27.5f,3.4f,-31);to=new Vector3(25.8f,2.8f,-22);lookA=new Vector3(6,12-depth,6);lookB=new Vector3(4,11-depth,10);}
                 else {from=new Vector3(24,3.2f,-27);to=new Vector3(27,3.4f,-19);lookA=new Vector3(46,3,-10);lookB=new Vector3(45,2.6f,-10);}
             }
             float e=Mathf.SmoothStep(0,1,u);

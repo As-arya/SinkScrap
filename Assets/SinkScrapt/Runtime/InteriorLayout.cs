@@ -8,17 +8,22 @@ using UnityEngine;
 
 namespace SinkScrapt
 {
-    // The wreck interior is a sealed grid of 4 m cells on three decks. Every cell belongs to exactly one module: the shared
-    // corridor network, a room, a stair shaft (which spans two decks), or solid void. Walls stand on every edge between
+    // The wreck interior is a sealed grid of 4 m cells (three decks on the cargo ship, five on the cruise ship). Every cell
+    // belongs to exactly one module: the shared corridor network, a room, a stair shaft (which spans two decks), the open air of
+    // the cruise lobby's atrium (the deck above the lobby, never walkable), or solid void. Walls stand on every edge between
     // different modules unless the blueprint declares an opening there, so the physical geometry and the logical graph come
     // from the same data and nothing outside the modules is reachable.
     public static class ShipGrid
     {
-        public const int Columns=9, Rows=13, Decks=3;
+        // Grid size of the active wreck (ShipProfile.Current): 9 x 13 x 3 on the cargo ship, 13 x 30 x 5 on the cruise ship.
+        public static int Columns => ShipProfile.Current.columns;
+        public static int Rows => ShipProfile.Current.rows;
+        public static int Decks => ShipProfile.Current.decks;
         // Room doorways take one 1.04 m leaf (InteriorDoor); 1.1 m still clears the hull stalker's 0.84 m body on the
         // navigation line through the door centre.
         public const float Cell=4, Wall=.2f, DoorWidth=1.1f, DoorHeight=2.25f;
-        public const float HalfWidth=Columns*Cell*.5f, HalfLength=Rows*Cell*.5f;
+        public static float HalfWidth => Columns*Cell*.5f;
+        public static float HalfLength => Rows*Cell*.5f;
         // +x, +z, -x, -z
         public static readonly Vector2Int[] Dirs={new(1,0),new(0,1),new(-1,0),new(0,-1)};
         public static float X(int column) => (column-(Columns-1)*.5f)*Cell;
@@ -35,14 +40,16 @@ namespace SinkScrapt
 
     [Serializable] public class RoomData { public int id; public int floor; public int x; public int z; public int w; public int d; public int type; public bool Contains(int cx,int cz) => cx>=x&&cx<x+w&&cz>=z&&cz<z+d; }
     // An opening from cell (x,z) on `floor` toward `dir`. A locked door is the only way into a dead-end room and needs a key.
-    [Serializable] public class DoorData { public int floor; public int x; public int z; public int dir; public bool locked; }
-    // An access from the outside: the corridor cell (x,z) on `floor` at the hull edge facing `dir`. Entries on the top deck climb
-    // an airlock flight to the cargo deck; entries on lower decks are hatch vestibules. Entry 0 (A) is always on the top deck.
+    // An arch (the cruise lobby's wide openings) has no leaf: it is always open and never locked.
+    [Serializable] public class DoorData { public int floor; public int x; public int z; public int dir; public bool locked; public bool arch; }
+    // An access from the outside: the cell (x,z) on `floor` at the hull edge facing `dir`. On the cargo ship, entries on the top
+    // deck climb an airlock flight to the cargo deck, entries on lower decks are hatch vestibules, and entry 0 (A) is always on
+    // the top deck. On the cruise ship every entry is a flat vestibule: A is the main door into the lobby, B and C emergency exits.
     [Serializable] public class EntryData
     {
         public int floor; public int x; public int z; public int dir;
         public Vector2Int Cell => new(x,z);
-        public bool Flight => floor==ShipGrid.Decks-1;
+        public bool Flight => ShipProfile.Current.flights&&floor==ShipGrid.Decks-1;
     }
     // Lower cell of a stair shaft on `floor`; the shaft continues one cell along `dir`. It is entered from the cell behind it on
     // `floor` and left through the cell ahead of it on `floor+1`.
@@ -55,17 +62,27 @@ namespace SinkScrapt
         public Vector2Int Exit => High+ShipGrid.Dirs[dir];
     }
 
-    public enum CellKind { Void, Corridor, Room, Stair }
+    public enum CellKind { Void, Corridor, Room, Stair, Atrium }
 
     [Serializable]
     public class InteriorLayout
     {
-        // v3: 9 x 13 cells per deck, 24-30 rooms, three entries anywhere on the hull (A on the top deck), locked dead-end rooms.
+        // Cargo v3: 9 x 13 cells per deck, 24-30 rooms, three entries anywhere on the hull (A on the top deck), locked dead-end rooms.
         public const int GeneratorVersion=3;
+        // Cruise v1: 13 x 30 cells on five decks, 75-90 rooms, the fixed two-storey lobby behind main door A on deck 2.
+        public const int CruiseGeneratorVersion=1;
+        public static int VersionOf(ShipKind kind) => kind==ShipKind.Cruise?CruiseGeneratorVersion:GeneratorVersion;
         public const int EntryCount=3;
         public static readonly string[] EntryNames={"A","B","C"};
         public int version=GeneratorVersion;
         public int seed;
+        // Which wreck this blueprint belongs to; old blueprints without the field are cargo-ship layouts.
+        public ShipKind ship;
+        // Cruise ship: id of the lobby room whose space continues one deck up as an open atrium (its cells on floor+1 are
+        // CellKind.Atrium), or -1.
+        public int atrium=-1;
+        public ShipProfile Profile => ShipProfile.Of(ship);
+        public string Describe => "seed "+seed+", "+ship+" generator v"+version;
         // One row-major mask per deck ('1' = corridor), index x+z*Columns.
         public List<string> corridors=new();
         public List<RoomData> rooms=new();
@@ -79,8 +96,10 @@ namespace SinkScrapt
         [NonSerialized] int[] modules;
         [NonSerialized] HashSet<int> doorEdges;
         static int Key(int floor,int x,int z) => floor*ShipGrid.Columns*ShipGrid.Rows+x+z*ShipGrid.Columns;
+        // Grid queries answer for this blueprint's ship, so indexing makes it the active profile (only one wreck is ever loaded).
         void Index()
         {
+            ShipProfile.Use(ship);
             int n=ShipGrid.Decks*ShipGrid.Columns*ShipGrid.Rows;kinds=new CellKind[n];modules=new int[n];doorEdges=new HashSet<int>();
             for(int f=0;f<ShipGrid.Decks;f++)for(int z=0;z<ShipGrid.Rows;z++)for(int x=0;x<ShipGrid.Columns;x++) {modules[Key(f,x,z)]=-1;if(IsCorridor(f,x,z))kinds[Key(f,x,z)]=CellKind.Corridor;}
             foreach(var r in rooms)if(r.floor>=0&&r.floor<ShipGrid.Decks)for(int x=r.x;x<r.x+r.w;x++)for(int z=r.z;z<r.z+r.d;z++)if(ShipGrid.Inside(x,z)) {kinds[Key(r.floor,x,z)]=CellKind.Room;modules[Key(r.floor,x,z)]=r.id;}
@@ -88,17 +107,28 @@ namespace SinkScrapt
                 var s=stairs[i];
                 foreach(int f in new[]{s.floor,s.floor+1})foreach(var c in new[]{s.Low,s.High})if(f>=0&&f<ShipGrid.Decks&&ShipGrid.Inside(c.x,c.y)) {kinds[Key(f,c.x,c.y)]=CellKind.Stair;modules[Key(f,c.x,c.y)]=i;}
             }
+            var lobby=Atrium;
+            if(lobby!=null&&lobby.floor+1<ShipGrid.Decks)for(int x=lobby.x;x<lobby.x+lobby.w;x++)for(int z=lobby.z;z<lobby.z+lobby.d;z++)if(ShipGrid.Inside(x,z)) {kinds[Key(lobby.floor+1,x,z)]=CellKind.Atrium;modules[Key(lobby.floor+1,x,z)]=lobby.id;}
             foreach(var d in doors) {
                 if(d.dir<0||d.dir>3)continue;var n2=new Vector2Int(d.x,d.z)+ShipGrid.Dirs[d.dir];
                 doorEdges.Add(Key(d.floor,d.x,d.z)*4+d.dir);doorEdges.Add(Key(d.floor,n2.x,n2.y)*4+ShipGrid.Opposite(d.dir));
             }
+        }
+        public RoomData Atrium => atrium>=0&&rooms!=null&&atrium<rooms.Count?rooms[atrium]:null;
+        // The cruise lobby (the room under the atrium), where main entry A and the grand stairs open.
+        public bool IsLobby(RoomData room) => room!=null&&room.id==atrium;
+        // Cell (x,z) on `floor` is walkable and its edge toward `dir` is the balustrade over the lobby atrium.
+        public bool Balcony(int floor,int x,int z,int dir)
+        {
+            var n=new Vector2Int(x,z)+ShipGrid.Dirs[dir];var a=Kind(floor,x,z,out _);var b=Kind(floor,n.x,n.y,out _);
+            return (a==CellKind.Atrium&&b==CellKind.Corridor)||(a==CellKind.Corridor&&b==CellKind.Atrium);
         }
         public bool IsCorridor(int floor,int x,int z) => floor>=0&&floor<corridors.Count&&ShipGrid.Inside(x,z)&&corridors[floor].Length==ShipGrid.Columns*ShipGrid.Rows&&corridors[floor][x+z*ShipGrid.Columns]=='1';
         public RoomData RoomAt(int floor,int x,int z) {var kind=Kind(floor,x,z,out int id);return kind==CellKind.Room&&id>=0&&id<rooms.Count?rooms[id]:null;}
         public CellKind Kind(int floor,int x,int z,out int module)
         {
             module=-1;if(!ShipGrid.Inside(x,z)||floor<0||floor>=ShipGrid.Decks)return CellKind.Void;
-            if(kinds==null)Index();
+            if(kinds==null||ShipProfile.Current.kind!=ship)Index();
             module=modules[Key(floor,x,z)];return kinds[Key(floor,x,z)];
         }
         // Index of the entry that opens from cell (x,z) on `floor` toward `dir`, or -1.
@@ -110,7 +140,7 @@ namespace SinkScrapt
         }
         public bool HasDoor(int floor,int x,int z,int dir)
         {
-            if(kinds==null)Index();
+            if(kinds==null||ShipProfile.Current.kind!=ship)Index();
             return ShipGrid.Inside(x,z)&&doorEdges.Contains(Key(floor,x,z)*4+dir);
         }
         // Index in `doors` of the door on that edge (either side), or -1.
@@ -129,9 +159,9 @@ namespace SinkScrapt
         {
             var n=new Vector2Int(x,z)+ShipGrid.Dirs[dir];
             var kind=Kind(floor,x,z,out int a);
-            if(!ShipGrid.Inside(n.x,n.y))return kind==CellKind.Corridor&&EntryAt(floor,x,z,dir)>=0;
+            if(!ShipGrid.Inside(n.x,n.y))return (kind==CellKind.Corridor||kind==CellKind.Room)&&EntryAt(floor,x,z,dir)>=0;
             var other=Kind(floor,n.x,n.y,out int b);
-            if(kind==CellKind.Void||other==CellKind.Void)return false;
+            if(kind==CellKind.Void||other==CellKind.Void||kind==CellKind.Atrium||other==CellKind.Atrium)return false;
             if(kind==CellKind.Stair||other==CellKind.Stair) {
                 if(kind==CellKind.Stair&&other==CellKind.Stair)return a==b;
                 int stair=kind==CellKind.Stair?a:b;var s=stairs[stair];var cell=kind==CellKind.Stair?new Vector2Int(x,z):n;var outside=kind==CellKind.Stair?n:new Vector2Int(x,z);
@@ -141,10 +171,12 @@ namespace SinkScrapt
             if(kind==other&&a==b)return true;
             return HasDoor(floor,x,z,dir);
         }
-        // Whether the deck slab at `floor` exists under cell (x,z): it is missing only where a stair shaft rises from the deck below.
+        // Whether the deck slab at `floor` exists under cell (x,z): it is missing where a stair shaft rises from the deck below and
+        // over the lobby (its atrium is open up to the next deck's slab).
         public bool HasFloor(int floor,int x,int z)
         {
             foreach(var s in stairs)if(s.floor+1==floor&&((s.Low.x==x&&s.Low.y==z)||(s.High.x==x&&s.High.y==z)))return false;
+            var lobby=Atrium;if(lobby!=null&&floor==lobby.floor+1&&lobby.Contains(x,z))return false;
             return true;
         }
         public Vector3 Position(RoomData room) => ShipGrid.Center(room.floor,room.x,room.z)+new Vector3((room.w-1)*ShipGrid.Cell*.5f,0,(room.d-1)*ShipGrid.Cell*.5f);
@@ -202,39 +234,53 @@ namespace SinkScrapt
         // Null when the blueprint is valid, otherwise the first broken rule (logged with the seed and generator version).
         public string Problem()
         {
-            const int cells=ShipGrid.Columns*ShipGrid.Rows;kinds=null;
-            if(version!=GeneratorVersion)return "generator version";
+            kinds=null;
+            if(!Enum.IsDefined(typeof(ShipKind),ship))return "ship kind";
+            var profile=ShipProfile.Use(ship);int cells=ShipGrid.Columns*ShipGrid.Rows;bool cruise=ship==ShipKind.Cruise;
+            if(version!=VersionOf(ship))return "generator version";
             if(corridors==null||rooms==null||doors==null||stairs==null||entries==null||corridors.Count!=ShipGrid.Decks||corridors.Any(c=>c==null||c.Length!=cells||c.Any(ch=>ch!='0'&&ch!='1')))return "corridor masks";
-            if(rooms.Count<24||rooms.Count>30||rooms.Select(x=>x.id).Distinct().Count()!=rooms.Count)return "room count";
-            for(int i=0;i<rooms.Count;i++)if(rooms[i].id!=i)return "room ids";
-            for(int f=0;f<ShipGrid.Decks;f++) {int count=rooms.Count(r=>r.floor==f);if(count<8||count>10)return "rooms on deck "+f;}
-            // Stairs: two separate shafts between every pair of decks, inside the hull, not overlapping anything.
+            if(rooms.Count<profile.minRooms||rooms.Count>profile.maxRooms||rooms.Select(x=>x.id).Distinct().Count()!=rooms.Count)return "room count";
+            for(int i=0;i<rooms.Count;i++)if(rooms[i]==null||rooms[i].id!=i)return "room ids";
+            for(int f=0;f<ShipGrid.Decks;f++) {int count=rooms.Count(r=>r.floor==f);if(count<profile.minRoomsPerDeck||count>profile.maxRoomsPerDeck)return "rooms on deck "+f;}
+            // The cruise ship has exactly one lobby (type 7), open as an atrium to the deck above; the cargo ship has none.
+            var lobby=Atrium;
+            if(cruise!=(lobby!=null)||rooms.Count(r=>r.type==CruiseLayout.Lobby)!=(cruise?1:0)||(lobby!=null&&(lobby.type!=CruiseLayout.Lobby||lobby.floor+1>=ShipGrid.Decks)))return "lobby";
+            // Stairs: separate shafts between every pair of decks, inside the hull, not overlapping anything.
             for(int f=0;f<ShipGrid.Decks-1;f++)if(stairs.Count(s=>s.floor==f)<2)return "stairs from deck "+f;
+            // A stair landing opens onto a corridor, or (cruise) into the lobby: its grand stairs.
+            bool Landing(int floor,Vector2Int c) => IsCorridor(floor,c.x,c.y)||(lobby!=null&&lobby.floor==floor&&lobby.Contains(c.x,c.y));
             var shaft=new HashSet<int>();
             foreach(var s in stairs) {
-                if(s.floor<0||s.floor>=ShipGrid.Decks-1||s.dir<0||s.dir>3)return "stair data";
+                if(s==null||s.floor<0||s.floor>=ShipGrid.Decks-1||s.dir<0||s.dir>3)return "stair data";
                 foreach(var c in new[]{s.Low,s.High,s.Entry,s.Exit})if(!ShipGrid.Inside(c.x,c.y))return "stair outside hull";
                 foreach(int f in new[]{s.floor,s.floor+1})foreach(var c in new[]{s.Low,s.High}) {
                     if(!shaft.Add(f*cells+c.x+c.y*ShipGrid.Columns))return "stairs overlap";
                     if(IsCorridor(f,c.x,c.y))return "stair over corridor";
                 }
-                if(!IsCorridor(s.floor,s.Entry.x,s.Entry.y))return "stair entry not on a corridor";
-                if(!IsCorridor(s.floor+1,s.Exit.x,s.Exit.y))return "stair exit not on a corridor";
+                if(!Landing(s.floor,s.Entry))return "stair entry not on a corridor";
+                if(!Landing(s.floor+1,s.Exit))return "stair exit not on a corridor";
             }
             var used=new HashSet<int>();
             foreach(var r in rooms) {
-                if(r.floor<0||r.floor>=ShipGrid.Decks||r.type<0||r.type>6||r.w<1||r.d<1||r.w>3||r.d>3||!ShipGrid.Inside(r.x,r.z)||!ShipGrid.Inside(r.x+r.w-1,r.z+r.d-1))return "room bounds";
+                int side=r.type==CruiseLayout.Lobby?CruiseLayout.LobbySide:profile.maxRoomSide;
+                if(r.floor<0||r.floor>=ShipGrid.Decks||!profile.AllowsType(r.type)||r.w<1||r.d<1||r.w>side||r.d>side||!ShipGrid.Inside(r.x,r.z)||!ShipGrid.Inside(r.x+r.w-1,r.z+r.d-1))return "room bounds";
                 for(int x=r.x;x<r.x+r.w;x++)for(int z=r.z;z<r.z+r.d;z++) {
                     int key=r.floor*cells+x+z*ShipGrid.Columns;
                     if(!used.Add(key)||shaft.Contains(key)||IsCorridor(r.floor,x,z))return "room overlap";
                 }
             }
+            // Nothing stands in the atrium's open air.
+            if(lobby!=null)for(int x=lobby.x;x<lobby.x+lobby.w;x++)for(int z=lobby.z;z<lobby.z+lobby.d;z++) {
+                int key=(lobby.floor+1)*cells+x+z*ShipGrid.Columns;
+                if(used.Contains(key)||shaft.Contains(key)||IsCorridor(lobby.floor+1,x,z))return "atrium overlap";
+            }
             foreach(var d in doors) {
-                if(d.floor<0||d.floor>=ShipGrid.Decks||d.dir<0||d.dir>3||!ShipGrid.Inside(d.x,d.z))return "door data";
+                if(d==null||d.floor<0||d.floor>=ShipGrid.Decks||d.dir<0||d.dir>3||!ShipGrid.Inside(d.x,d.z))return "door data";
                 var n=new Vector2Int(d.x,d.z)+ShipGrid.Dirs[d.dir];if(!ShipGrid.Inside(n.x,n.y))return "door leads outside";
                 var a=Kind(d.floor,d.x,d.z,out int ma);var b=Kind(d.floor,n.x,n.y,out int mb);
                 if(a!=CellKind.Room&&b!=CellKind.Room)return "door without a room";
-                if(a==CellKind.Void||b==CellKind.Void||a==CellKind.Stair||b==CellKind.Stair||(a==b&&ma==mb))return "door into nothing";
+                if(a==CellKind.Void||b==CellKind.Void||a==CellKind.Stair||b==CellKind.Stair||a==CellKind.Atrium||b==CellKind.Atrium||(a==b&&ma==mb))return "door into nothing";
+                if(d.arch&&(d.locked||!cruise))return "arch";
             }
             for(int i=0;i<doors.Count;i++)for(int j=i+1;j<doors.Count;j++)if(DoorAt(doors[j].floor,doors[j].x,doors[j].z,doors[j].dir)==i)return "door twice";
             // A locked door must be the only door of a dead-end room, so locking it never cuts anything else off.
@@ -244,15 +290,18 @@ namespace SinkScrapt
                 bool leaf=(room!=null&&DoorCount(room)==1)||(other!=null&&DoorCount(other)==1);
                 if(!leaf)return "locked door "+i+" is not a dead end";
             }
-            // Entries: three, A on the top deck, each a corridor cell on the hull edge facing outward, all in different cells.
-            if(entries.Count!=EntryCount)return "entry count";
-            if(entries[0].floor!=ShipGrid.Decks-1)return "entry A not on the top deck";
+            // Entries: three on the hull edge facing outward, all in different cells. Cargo: A on the top deck, every entry on a
+            // corridor. Cruise: A opens into the lobby, B and C (emergency exits) on corridors of two different upper decks.
+            if(entries.Count!=EntryCount||entries.Any(e=>e==null))return "entry count";
+            if(!cruise&&entries[0].floor!=ShipGrid.Decks-1)return "entry A not on the top deck";
+            if(cruise&&(entries[0].floor!=lobby.floor||!lobby.Contains(entries[0].x,entries[0].z)))return "entry A not in the lobby";
             for(int i=0;i<entries.Count;i++) {
                 var e=entries[i];
                 if(e.floor<0||e.floor>=ShipGrid.Decks||e.dir<0||e.dir>3||!ShipGrid.OnEdge(e.x,e.z,e.dir))return "entry "+i+" off the hull";
-                if(!IsCorridor(e.floor,e.x,e.z))return "entry "+i+" not on a corridor";
+                if(!(cruise&&i==0)&&!IsCorridor(e.floor,e.x,e.z))return "entry "+i+" not on a corridor";
                 for(int j=0;j<i;j++)if(entries[j].floor==e.floor&&Mathf.Abs(entries[j].x-e.x)+Mathf.Abs(entries[j].z-e.z)<3)return "entries "+j+" and "+i+" too close";
             }
+            if(cruise&&(entries[1].floor==entries[2].floor||entries[1].floor<=lobby.floor||entries[2].floor<=lobby.floor))return "emergency exits";
             // Every room and corridor cell is reachable from access A through physical openings (with keys for locked doors).
             var seen=Reachable(entries[0].floor,entries[0].x,entries[0].z);
             for(int f=0;f<ShipGrid.Decks;f++)for(int z=0;z<ShipGrid.Rows;z++)for(int x=0;x<ShipGrid.Columns;x++) {
@@ -269,7 +318,7 @@ namespace SinkScrapt
         }
         public HashSet<int> Reachable(int floor,int x,int z)
         {
-            const int cells=ShipGrid.Columns*ShipGrid.Rows;
+            int cells=ShipGrid.Columns*ShipGrid.Rows;
             var seen=new HashSet<int>{floor*cells+x+z*ShipGrid.Columns};var queue=new Queue<(int f,int x,int z)>();queue.Enqueue((floor,x,z));
             while(queue.Count>0) {
                 var c=queue.Dequeue();
@@ -311,16 +360,19 @@ namespace SinkScrapt
     {
         // A fixed seed whose blueprint is covered by the generator tests; used only when every attempt for a seed fails.
         public const int FallbackSeed=1;
-        public static InteriorLayout Generate(int seed)
+        // The blueprint for `seed` on the given wreck. Generating makes that wreck's profile the active one.
+        public static InteriorLayout Generate(int seed,ShipKind ship=ShipKind.Cargo)
         {
-            for(int attempt=0;attempt<20;attempt++) {var layout=Build(seed,attempt);if(layout!=null&&layout.Validate())return layout;}
-            Debug.LogWarning("Layout cadangan dipakai: seed "+seed+" generator v"+InteriorLayout.GeneratorVersion+" gagal 20 kali.");
-            for(int attempt=0;attempt<20;attempt++) {var fallback=Build(FallbackSeed,attempt);if(fallback!=null&&fallback.Validate()) {fallback.seed=seed;fallback.fallback=true;return fallback;}}
-            throw new InvalidOperationException("Layout cadangan tidak valid (generator v"+InteriorLayout.GeneratorVersion+").");
+            InteriorLayout Attempt(int s,int attempt) {ShipProfile.Use(ship);return ship==ShipKind.Cruise?CruiseLayout.Build(s,attempt):Build(s,attempt);}
+            int version=InteriorLayout.VersionOf(ship);
+            for(int attempt=0;attempt<20;attempt++) {var layout=Attempt(seed,attempt);if(layout!=null&&layout.Validate())return layout;}
+            Debug.LogWarning("Layout cadangan dipakai: seed "+seed+" "+ship+" generator v"+version+" gagal 20 kali.");
+            for(int attempt=0;attempt<20;attempt++) {var fallback=Attempt(FallbackSeed,attempt);if(fallback!=null&&fallback.Validate()) {fallback.seed=seed;fallback.fallback=true;return fallback;}}
+            throw new InvalidOperationException("Layout cadangan tidak valid ("+ship+" generator v"+version+").");
         }
         static InteriorLayout Build(int seed,int attempt)
         {
-            const int C=ShipGrid.Columns,R=ShipGrid.Rows,D=ShipGrid.Decks;
+            int C=ShipGrid.Columns,R=ShipGrid.Rows,D=ShipGrid.Decks;
             var random=new System.Random(unchecked(seed+attempt*7919));
             var layout=new InteriorLayout{seed=seed};
             var corridor=new bool[D,C,R];var blocked=new bool[D,C,R];var must=new List<Vector2Int>[D];for(int f=0;f<D;f++)must[f]=new();
@@ -430,12 +482,12 @@ namespace SinkScrapt
             for(int i=0;i<w.Length;i++) {if(roll<w[i])return i;roll-=w[i];}
             return 0;
         }
-        static List<Vector2Int> Cells(bool[,,] corridor,int f)
+        internal static List<Vector2Int> Cells(bool[,,] corridor,int f)
         {
             var list=new List<Vector2Int>();for(int z=0;z<ShipGrid.Rows;z++)for(int x=0;x<ShipGrid.Columns;x++)if(corridor[f,x,z])list.Add(new(x,z));return list;
         }
         // Shortest corridor extension from `target` to the existing network through unblocked cells.
-        static bool Connect(bool[,,] corridor,bool[,,] blocked,int f,Vector2Int target)
+        internal static bool Connect(bool[,,] corridor,bool[,,] blocked,int f,Vector2Int target)
         {
             if(corridor[f,target.x,target.y])return true;
             var previous=new Dictionary<Vector2Int,Vector2Int>{[target]=target};var queue=new Queue<Vector2Int>();queue.Enqueue(target);

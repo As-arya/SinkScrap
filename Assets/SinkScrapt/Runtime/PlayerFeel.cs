@@ -98,7 +98,7 @@ namespace SinkScrapt
             var renderer=hit.collider.GetComponent<Renderer>();string name=renderer!=null&&renderer.sharedMaterial!=null?renderer.sharedMaterial.name:"";
             int space=name.IndexOf(' ');
             Snd id=!System.Enum.TryParse<Surface>(space>0?name[..space]:name,out var surface)?fallback:surface switch {
-                Surface.Grating=>Snd.StepGrate, Surface.Wood or Surface.Planks=>Snd.StepWood, Surface.Concrete or Surface.Tile=>Snd.StepGround,
+                Surface.Grating=>Snd.StepGrate, Surface.Wood or Surface.Planks or Surface.Carpet=>Snd.StepWood, Surface.Concrete or Surface.Tile or Surface.Marble=>Snd.StepGround,
                 Surface.Rock or Surface.Sand=>Snd.StepGravel, _=>Snd.StepMetal };
             floors[key]=id;return id;
         }

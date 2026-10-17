@@ -22,6 +22,9 @@ namespace SinkScrapt
         public NetworkList<double> HazardTimers;
         // One entry per blueprint door: bit 0 = open, bit 1 = unlocked with a key (only meaningful for locked doors).
         public NetworkList<byte> DoorStates;
+        // Which wreck the current (or last) expedition goes to, picked at the helm. Every peer makes it the active ShipProfile, so
+        // the grid, the sinking timeline and the expedition length agree; it is set before the wreck's scenes load.
+        public readonly NetworkVariable<ShipKind> Ship=new();
         // Host setting for testing: no monsters spawn this session.
         public readonly NetworkVariable<bool> NoMonsters=new();
         // Time of day in hours. During an expedition it runs from ClockFrom to ClockTo with the shared clock (day into night or
@@ -63,16 +66,19 @@ namespace SinkScrapt
         {
             get {
                 float from=ClockFrom.Value,to=ClockTo.Value;
-                float t=InExpedition||Phase.Value==GamePhase.Results?Mathf.Clamp01((float)Elapsed/Mathf.Max(1,SinkApp.Instance.balance.duration)):0;
+                float t=InExpedition||Phase.Value==GamePhase.Results?Mathf.Clamp01((float)Elapsed/Mathf.Max(1,Duration)):0;
                 return Mathf.Repeat(Mathf.Lerp(from,to,t),24);
             }
         }
         public bool InExpedition=>Phase.Value==GamePhase.Expedition||Phase.Value==GamePhase.Departing;
         public double Elapsed=>InExpedition||Phase.Value==GamePhase.Results?Math.Max(0,SinkApp.Instance.TimeNow-Started.Value):0;
-        public float Depth=>InExpedition||Phase.Value==GamePhase.Results?ShipTimeline.Depth((float)Elapsed,SinkApp.Instance.balance.duration):0;
+        // The active wreck's profile and expedition length (600 s cargo ship, 720 s cruise ship by default; Balance.asset).
+        public ShipProfile Profile=>ShipProfile.Use(Ship.Value);
+        public float Duration=>Profile.Duration(SinkApp.Instance.balance);
+        public float Depth=>InExpedition||Phase.Value==GamePhase.Results?ShipTimeline.Depth((float)Elapsed,Duration):0;
         // Water height inside the wreck (interior coordinates): the bilge on the lowest deck, then the shared sinking curve.
         public float FloodLevel=>InExpedition||Phase.Value==GamePhase.Results?ShipTimeline.InteriorWater(Depth):0;
-        public float Remaining=>Mathf.Max(0,SinkApp.Instance.balance.duration-(float)Elapsed);
+        public float Remaining=>Mathf.Max(0,Duration-(float)Elapsed);
         public struct FlareState {public Vector3 position;public double ends;}
         public bool HazardSuppressed(int index) => index>=0&&index*2+1<HazardTimers.Count&&SinkApp.Instance.TimeNow<HazardTimers[index*2];
         public double HazardOffUntil(int index) => index>=0&&index*2+1<HazardTimers.Count?HazardTimers[index*2]:0;
@@ -133,8 +139,9 @@ namespace SinkScrapt
                 foreach(var player in NetPlayer.All)if(player.Alive.Value)player.TickVitals(vitalsDelta);
                 if(NetPlayer.All.Count>0&&!NetPlayer.All.Any(p=>p.Alive.Value)) {Finish("Seluruh kru hilang.");return;}
             }
-            // Warnings: when the wreck starts to sink (six minutes left on the nominal clock), two minutes, thirty seconds.
-            float duration=SinkApp.Instance.balance.duration;
+            // Warnings: when the wreck starts to sink (six minutes left on the cargo ship, seven on the cruise ship), two minutes,
+            // thirty seconds.
+            float duration=Duration;
             int level=Remaining<=30?3:Remaining<=120?2:Elapsed>=ShipTimeline.At(ShipTimeline.SinkStart,duration)?1:0;
             if(level>warningLevel) {warningLevel=level;NoticeRpc(level==1?Mathf.CeilToInt(Remaining/60)+" MENIT: kapal mulai tenggelam, air naik.":level==2?"2 MENIT: segera kembali ke kapal kecil!":"30 DETIK: kapal kecil akan berangkat!");AlarmRpc(level);}
             // The drowned hunter wakes when the flood reaches the middle deck.
@@ -268,10 +275,12 @@ namespace SinkScrapt
                     if(!success) {foreach(var uid in kept)DespawnItem(uid);foreach(var crew in NetPlayer.All){crew.Inventory=new InventoryData();crew.PublishInventory();Activate(crew);}}
                     Save();SyncCampaign();NoticeRpc(success?"Kuota terpenuhi! Siklus baru dimulai.":"Kuota gagal. Kampanye dimulai kembali.");PlayUi(success?Snd.QuotaPass:Snd.QuotaFail,.9f);break;
                 case ActionKind.TravelShip:
-                    if(safe&&player.OnBoat&&Near(player,BoatLayout.Helm)&&Campaign.expeditionsUsed<3)StartCoroutine(Travel(false));break;
+                    // `argument` picks the wreck (ShipKind): 0 the cargo ship, 1 the abandoned cruise ship.
+                    if(!Enum.IsDefined(typeof(ShipKind),(ShipKind)argument)) {Reject(sender);return;}
+                    if(safe&&player.OnBoat&&Near(player,BoatLayout.Helm)&&Campaign.expeditionsUsed<3)StartCoroutine(Travel(false,(ShipKind)argument));break;
                 case ActionKind.TravelIsland:
                     // The island closes a quota cycle: the crew only sails there after its third expedition.
-                    if(safe&&player.OnBoat&&Near(player,BoatLayout.Helm)&&Campaign.expeditionsUsed>=3&&WorldZone.Island==null)StartCoroutine(Travel(true));break;
+                    if(safe&&player.OnBoat&&Near(player,BoatLayout.Helm)&&Campaign.expeditionsUsed>=3&&WorldZone.Island==null)StartCoroutine(Travel(true,Ship.Value));break;
                 case ActionKind.Depart:
                     if(!InExpedition||!player.OnBoat||!Near(player,BoatLayout.Helm))return;
                     if(Phase.Value==GamePhase.Expedition) {DepartureAt.Value=now+5;Phase.Value=GamePhase.Departing;NoticeRpc("Berangkat dalam 5 detik. Kru yang tertinggal akan hilang.");PlayUi(Snd.Horn,.8f);}break;
@@ -310,7 +319,7 @@ namespace SinkScrapt
                     DespawnItem(used.uid);player.PublishInventory();PlaySfx(Snd.TorchOn,player.transform.position+Vector3.up,.5f,.8f);Tell(sender,"Baterai dipasang: senter penuh.");break;
                 case ActionKind.Door:
                     var wreckDoors=WorldZone.Interior;
-                    if(!InExpedition||wreckDoors==null||wreckDoors.layout==null||argument<0||argument>=wreckDoors.layout.doors.Count||argument>=DoorStates.Count)return;
+                    if(!InExpedition||wreckDoors==null||wreckDoors.layout==null||argument<0||argument>=wreckDoors.layout.doors.Count||argument>=DoorStates.Count||wreckDoors.layout.doors[argument].arch)return;
                     if((WorldZone.InteriorOffset+wreckDoors.layout.DoorCenter(argument)+Vector3.up-(player.transform.position+Vector3.up)).sqrMagnitude>12) {Reject(sender);return;}
                     if(DoorLockedNow(argument)) {
                         // A key opens one locked door and is used up there.
@@ -368,28 +377,33 @@ namespace SinkScrapt
             if(UnityEngine.Random.value<.5f) {float from=UnityEngine.Random.Range(12.5f,14.5f);ClockFrom.Value=from;ClockTo.Value=UnityEngine.Random.Range(20.6f,21.6f);}
             else {float from=UnityEngine.Random.Range(1.5f,3f);ClockFrom.Value=from;ClockTo.Value=UnityEngine.Random.Range(7.6f,8.6f);}
         }
-        IEnumerator Travel(bool island)
+        IEnumerator Travel(bool island,ShipKind ship)
         {
-            if(transitioning)yield break;transitioning=true;Save();Phase.Value=GamePhase.Loading;NoticeRpc("Mesin menyala. Menuju "+(island?"pulau...":"kapal kargo..."));
+            if(transitioning)yield break;transitioning=true;Save();Phase.Value=GamePhase.Loading;NoticeRpc("Mesin menyala. Menuju "+(island?"pulau...":ShipProfile.Of(ship).name+"..."));
+            // The wreck is chosen before anything loads, so every peer builds the right exterior and interior.
+            if(!island)Ship.Value=ship;
             foreach(var player in NetPlayer.All)Activate(player);
             yield return new WaitForSecondsRealtime(2);
             ClearEntities();yield return Unload("Interior");yield return Unload("Exterior");
             if(island) {IslandClock();yield return Load("Island");Blueprint.Value=default;Phase.Value=GamePhase.Harbor;BeginArrival(2);}
             else {
                 yield return Unload("Island");SeedValue.Value=UnityEngine.Random.Range(1,int.MaxValue);
-                var layout=InteriorGenerator.Generate(Seed);Blueprint.Value=new FixedString4096Bytes(layout.Pack());layoutReady.Clear();
-                DoorStates.Clear();foreach(var _ in layout.doors)DoorStates.Add(0);
+                var layout=InteriorGenerator.Generate(Seed,ship);Blueprint.Value=new FixedString4096Bytes(layout.Pack());layoutReady.Clear();
+                // Doors start closed; the lobby's arches have no leaf and stand open.
+                DoorStates.Clear();foreach(var door in layout.doors)DoorStates.Add((byte)(door.arch?1:0));
                 yield return Load("Exterior");yield return Load("Interior");
                 var deadline=Time.realtimeSinceStartup+30;
                 while(NetworkManager.ConnectedClientsIds.Any(id=>!layoutReady.Contains(id))&&Time.realtimeSinceStartup<deadline)yield return null;
                 foreach(var id in NetworkManager.ConnectedClientsIds.Where(id=>!layoutReady.Contains(id)).ToArray()) if(id!=NetworkManager.LocalClientId)NetworkManager.DisconnectClient(id,"Layout tidak siap.");
                 if(WorldZone.Interior==null||WorldZone.Interior.nodes.Count==0) {NoticeRpc("Interior gagal dibangun. Kembali ke pulau.");Phase.Value=GamePhase.Ready;transitioning=false;yield break;}
                 HazardTimers.Clear();SpawnLoot(layout);
-                if(!NoMonsters.Value) {SpawnEnemy(false);if(Campaign.cycle>=4)SpawnEnemy(false);}
+                // Hull stalkers: one on the cargo ship and two on the much larger cruise ship, one more from cycle four, never more
+                // than two (PRD 6.5).
+                if(!NoMonsters.Value)for(int n=Mathf.Min(2,Profile.stalkers+(Campaign.cycle>=4?1:0));n>0;n--)SpawnEnemy(false);
                 ExpeditionClock();
                 // The shared clock starts when the arrival cutscene ends: until then Elapsed stays at zero for everyone.
                 Started.Value=SinkApp.Instance.TimeNow+SinkApp.Instance.balance.arrivalCutscene;nextVitals=Time.unscaledTimeAsDouble+.2;warningLevel=0;Phase.Value=GamePhase.Expedition;BeginArrival(1);
-                NoticeRpc(Mathf.RoundToInt(SinkApp.Instance.balance.duration/60)+" menit. Kapal mulai tenggelam pada menit "+Mathf.RoundToInt(ShipTimeline.At(ShipTimeline.SinkStart,SinkApp.Instance.balance.duration)/60)+"."+(NoMonsters.Value?"  [MODE TANPA MONSTER]":""));
+                NoticeRpc(Mathf.RoundToInt(Duration/60)+" menit. Kapal mulai tenggelam pada menit "+Mathf.RoundToInt(ShipTimeline.At(ShipTimeline.SinkStart,Duration)/60)+"."+(NoMonsters.Value?"  [MODE TANPA MONSTER]":""));
             }
             foreach(var player in NetPlayer.All)Activate(player);transitioning=false;if(island)Save();
         }
@@ -402,7 +416,7 @@ namespace SinkScrapt
         }
         [Rpc(SendTo.Server,InvokePermission=RpcInvokePermission.Everyone)]void QaReplyRpc(string layout,int nodes,bool alive,bool voice,float depth,bool boat,bool island,RpcParams rpc=default)
         {
-            if(layout.Length>4096||nodes<0||nodes>1000)return;
+            if(layout.Length>4096||nodes<0||nodes>20000)return;
             QaReports[rpc.Receive.SenderClientId]=new QaSnapshot{layout=layout,nodes=nodes,alive=alive,voice=voice,depth=depth,boat=boat,island=island};
         }
         // QA: what each client's screen shows right now (QaRunner.PeerView as JSON); clients started with --qa-capture also save
@@ -419,12 +433,14 @@ namespace SinkScrapt
         }
         void SpawnLoot(InteriorLayout layout)
         {
-            var random=new System.Random(Seed);int count=random.Next(18,26);
+            var random=new System.Random(Seed);var profile=layout.Profile;int count=random.Next(profile.lootMin,profile.lootMax+1);
             // Loot lands on the clear walkway through a room cell; furniture only stands against the walls.
             Vector3 InRoom(RoomData room) {var cell=ShipGrid.Center(room.floor,room.x+random.Next(room.w),room.z+random.Next(room.d));return WorldZone.InteriorOffset+cell+new Vector3((float)random.NextDouble()*1.1f-.55f,.5f,(float)random.NextDouble()*1.1f-.55f);}
             for(int i=0;i<count;i++) {
-                var room=layout.rooms[random.Next(layout.rooms.Count)];int roll=random.Next(100);
-                int def=roll<(room.floor==0?18:room.floor==1?10:4)?random.Next(9,12):roll<35?random.Next(6,9):random.Next(6);
+                // Same draws as the original cargo-ship formula (Next(n) and Next(a,a+n) take one sample alike).
+                var room=layout.rooms[random.Next(layout.rooms.Count)];int roll=random.Next(100);var loot=profile.LootFor(room.type);
+                var table=roll<(room.floor==0?18:room.floor==1?10:4)?loot.largeLoot:roll<35?loot.midLoot:loot.commonLoot;
+                int def=table[random.Next(table.Length)];
                 SpawnItem(ItemCatalog.Create(def),InRoom(room));
             }
             // Behind every locked door waits something worth the key: a high-value or large item.
@@ -433,7 +449,8 @@ namespace SinkScrapt
                 if(!layout.doors[i].locked)continue;var room=layout.DoorRoom(i);
                 if(room==null||layout.DoorCount(room)!=1)room=layout.RoomAt(layout.doors[i].floor,layout.doors[i].x,layout.doors[i].z);
                 if(room==null||!locked.Add(room.id))continue;
-                SpawnItem(ItemCatalog.Create(random.Next(100)<40?random.Next(9,12):random.Next(7,9)),InRoom(room));
+                var loot=profile.LootFor(room.type);var table=random.Next(100)<40?loot.largeLoot:loot.valuableLoot;
+                SpawnItem(ItemCatalog.Create(table[random.Next(table.Length)]),InRoom(room));
             }
             // One key per locked door and a few spare torch batteries, anywhere a diver can reach without a key.
             var open=layout.rooms.Where(r=>!locked.Contains(r.id)).ToList();

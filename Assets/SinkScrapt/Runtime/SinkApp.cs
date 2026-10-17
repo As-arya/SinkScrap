@@ -73,6 +73,8 @@ namespace SinkScrapt
             if(Array.IndexOf(args,"--qa-host")>=0) {
                 noMonsters=false;var runner=gameObject.AddComponent<QaRunner>();runner.expectedPlayers=4;runner.iterations=10;
                 int players=Array.IndexOf(args,"--qa-players");if(players>=0&&players+1<args.Length&&int.TryParse(args[players+1],out int count))runner.expectedPlayers=Mathf.Clamp(count,1,4);
+                // --qa-ship cruise: run the expeditions on the abandoned cruise ship (three of them; it is far larger).
+                int ship=Array.IndexOf(args,"--qa-ship");if(ship>=0&&ship+1<args.Length&&args[ship+1].ToLowerInvariant()=="cruise") {runner.ship=ShipKind.Cruise;runner.iterations=3;}
             }
         }
         // `--local-client`: keep trying for a while, because the host refuses joins while it is loading scenes.
